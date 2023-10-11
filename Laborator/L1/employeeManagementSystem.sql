@@ -99,3 +99,24 @@ CREATE TABLE Notifications(
     FOREIGN KEY (EmployeeID) REFERENCES Employees(EmployeeID),
 );
 
+-- Alter the Notifications Table to Add a New Column
+ALTER TABLE Notifications
+ADD SenderEmployeeID INT;
+
+-- Add a Foreign Key Constraint for the New Column
+ALTER TABLE Notifications
+ADD CONSTRAINT FK_SenderEmployee
+FOREIGN KEY (SenderEmployeeID)
+REFERENCES Employees(EmployeeID);
+
+
+
+-- Add a Foreign Key in the Employees Table
+ALTER TABLE Employees
+ADD DepartmentID INT;
+
+-- Create the Foreign Key Constraint
+ALTER TABLE Employees
+ADD CONSTRAINT FK_Employee_Department
+FOREIGN KEY (DepartmentID)
+REFERENCES Departments(DepartmentID);
