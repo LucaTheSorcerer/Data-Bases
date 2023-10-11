@@ -4,17 +4,29 @@ CREATE TABLE Departments (
 );
 
 
+---Employees Departments - one to many
 CREATE TABLE Employees (
     EmployeeID INT IDENTITY(1,1) PRIMARY KEY,
     FirstName NVARCHAR(50),
     LastName NVARCHAR(50),
     Email NVARCHAR(100),
     Phone NVARCHAR(20),
-    DepartmentID INT,
-    FOREIGN KEY (DepartmentID) REFERENCES Departments(DepartmentID)
 
 );
 
+-- Add a Foreign Key in the Employees Table
+ALTER TABLE Employees
+ADD DepartmentID INT;
+
+-- Create the Foreign Key Constraint
+ALTER TABLE Employees
+ADD CONSTRAINT FK_Employee_Department
+FOREIGN KEY (DepartmentID)
+REFERENCES Departments(DepartmentID);
+
+
+
+---Project Tasks - one to many
 CREATE TABLE Projects(
     ProjectID INT IDENTITY(1,1) PRIMARY KEY,
     ProjectName NVARCHAR(50),
@@ -22,6 +34,7 @@ CREATE TABLE Projects(
     EndDate DATE
 );
 
+---Employee Tasks - one to many
 CREATE TABLE Tasks(
     TaskID INT IDENTITY(1,1) PRIMARY KEY,
     TaskName NVARCHAR(100),
@@ -38,6 +51,7 @@ CREATE TABLE Skills (
     SkillName NVARCHAR(50),
 )
 
+---Employee Skills many to many
 CREATE TABLE EmployeeSkills(
     EmployeeSkillID INT IDENTITY(1,1) PRIMARY KEY,
     EmployeeID INT,
@@ -46,6 +60,7 @@ CREATE TABLE EmployeeSkills(
     FOREIGN KEY (SkillID) REFERENCES Skills(SkillID)
 );
 
+---Employees TimeTracking one to many
 CREATE TABLE TimeTracking(
     TimeEntryID INT IDENTITY(1,1) PRIMARY KEY,
     EmployeeID INT,
@@ -56,6 +71,7 @@ CREATE TABLE TimeTracking(
     FOREIGN KEY (TaskID) REFERENCES Tasks(TaskID)
 );
 
+---Employee Salary one to many
 CREATE TABLE Salary
 (
     SalaryID     INT IDENTITY (1,1) PRIMARY KEY,
@@ -64,6 +80,7 @@ CREATE TABLE Salary
     FOREIGN KEY (EmployeeID) REFERENCES Employees (EmployeeID)
 );
 
+---Employee VacationRequests one to many
 CREATE TABLE VacationRequests(
     RequestID INT IDENTITY(1,1) PRIMARY KEY,
     EmployeeID INT,
@@ -73,10 +90,12 @@ CREATE TABLE VacationRequests(
     FOREIGN KEY (EmployeeID) REFERENCES Employees(EmployeeID)
 );
 
+---Employee Notifications one to many
 CREATE TABLE Notifications(
     NotificationID INT IDENTITY(1,1) PRIMARY KEY,
     EmployeeID INT,
     Message NVARCHAR(MAX),
     Timestamp DATETIME,
-    FOREIGN KEY (EmployeeID) REFERENCES Employees(EmployeeID)
-)
+    FOREIGN KEY (EmployeeID) REFERENCES Employees(EmployeeID),
+);
+
