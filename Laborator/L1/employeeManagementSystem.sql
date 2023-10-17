@@ -237,13 +237,12 @@ CREATE TABLE TrainingPrograms (
 
 
 CREATE TABLE EmployeeTraining (
-    ---EmployeeTrainingID: A unique identifier for each employee-training relationship
     ---EmployeeID: A reference to the employee who participated in the training program
     ---ProgramID: A reference to the training program attended by the employee
     ---Purpose: This table establishes the many-to-many relationship between employees and training programs
-    EmployeeTrainingID INT IDENTITY(1,1) PRIMARY KEY,
     EmployeeID INT,
     ProgramID INT,
+    PRIMARY KEY (EmployeeID, ProgramID),
     FOREIGN KEY (EmployeeID) REFERENCES Employees(EmployeeID),
     FOREIGN KEY (ProgramID) REFERENCES TrainingPrograms(ProgramID)
 );

@@ -1,3 +1,5 @@
+use master
+
 INSERT INTO Departments (DepartmentName)
 VALUES ('HR'), ('Finance'), ('IT');
 
@@ -90,3 +92,42 @@ INNER JOIN Tasks t ON p.ProjectID = t.ProjectID;
 SELECT e.FirstName, e.LastName, n.Message, n.Timestamp
 FROM Notifications n
 INNER JOIN Employees e ON n.EmployeeID = e.EmployeeID;
+
+
+-- Insert sample training program data
+INSERT INTO TrainingPrograms (ProgramName, ProgramProvider, ProgramDate, DurationInHours, ProgramLocation)
+VALUES
+    ('Introduction to Python', 'Google', '2023-10-20', 16, 'Training Center A'),
+    ('Effective Communication Skills', 'Apple Inc', '2023-11-05', 8, 'Online'),
+    ('Software Development in Java', 'MSG', '2023-09-15', 24, 'Tech Center B');
+
+
+-- Insert data to associate employees with training programs
+-- For demonstration purposes, assume EmployeeID 1 and 2 attended the first program, and EmployeeID 3 attended the second program.
+INSERT INTO EmployeeTraining (EmployeeID, ProgramID)
+VALUES
+    (1, 1), -- Employee 1 attended Program 1
+    (2, 1), -- Employee 2 attended Program 1
+    (3, 2); -- Employee 3 attended Program 2
+
+
+    -- Query to retrieve employee details along with training program information
+SELECT e.FirstName, e.LastName, tp.ProgramName, tp.ProgramDate, tp.ProgramProvider
+FROM Employees AS e
+INNER JOIN EmployeeTraining AS et ON e.EmployeeID = et.EmployeeID
+INNER JOIN TrainingPrograms AS tp ON et.ProgramID = tp.ProgramID;
+
+
+
+
+-- Query time tracking data
+SELECT
+    tt.TimeEntryID,
+    e.FirstName AS EmployeeFirstName,
+    e.LastName AS EmployeeLastName,
+    t.TaskName,
+    tt.Date,
+    tt.HoursWorked
+FROM TimeTracking tt
+JOIN Employees e ON tt.EmployeeID = e.EmployeeID
+JOIN Tasks t ON tt.TaskID = t.TaskID;
