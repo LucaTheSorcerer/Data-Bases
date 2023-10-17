@@ -205,3 +205,46 @@ ADD FOREIGN KEY (EmployeeID) REFERENCES Employees(EmployeeID) ON DELETE CASCADE 
 ALTER TABLE Salary
 ADD CONSTRAINT CHK_Salary_Amount CHECK (SalaryAmount >= 0);
 
+-- Step 1: Drop the existing primary key constraint
+ALTER TABLE EmployeeSkills
+DROP CONSTRAINT PK_EmployeeSkills;
+
+-- Step 2: Add the composite primary key constraint
+ALTER TABLE EmployeeSkills
+ADD CONSTRAINT PK_EmployeeSkills PRIMARY KEY (EmployeeID, SkillID);
+
+
+
+ALTER TABLE EmployeeSkills
+ADD CONSTRAINT PK_EmployeeSkills
+PRIMARY KEY (EmployeeID, SkillID);
+
+CREATE TABLE TrainingPrograms (
+    ---ProgramID: A unique identifier for each training program
+    ---ProgramName: The name or title of the training program
+    ---ProgramProvider: The organization or provider that conducts the training
+    ---ProgramDate: The date when the training program takes place
+    ---DurationInHours: The duration of the training program in hours
+    ---ProgramLocation: The location where the training program is conducted
+    ---Purpose: This table stores details about various training programs
+    ProgramID INT IDENTITY(1,1) PRIMARY KEY,
+    ProgramName NVARCHAR(100),
+    ProgramProvider NVARCHAR(100),
+    ProgramDate DATE,
+    DurationInHours INT,
+    ProgramLocation NVARCHAR(100)
+);
+
+
+CREATE TABLE EmployeeTraining (
+    ---EmployeeTrainingID: A unique identifier for each employee-training relationship
+    ---EmployeeID: A reference to the employee who participated in the training program
+    ---ProgramID: A reference to the training program attended by the employee
+    ---Purpose: This table establishes the many-to-many relationship between employees and training programs
+    EmployeeTrainingID INT IDENTITY(1,1) PRIMARY KEY,
+    EmployeeID INT,
+    ProgramID INT,
+    FOREIGN KEY (EmployeeID) REFERENCES Employees(EmployeeID),
+    FOREIGN KEY (ProgramID) REFERENCES TrainingPrograms(ProgramID)
+);
+
