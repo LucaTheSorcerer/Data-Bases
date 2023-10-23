@@ -195,3 +195,43 @@ SELECT
 FROM Notifications N
 JOIN Employees R ON N.RecipientEmployeeID = R.EmployeeID
 JOIN Employees S ON N.SenderEmployeeID = S.EmployeeID;
+
+
+-- Update existing records in EmployeeTraining with feedback and performance data
+UPDATE EmployeeTraining
+SET Feedback = 'Improved', Performance = 'Good'
+WHERE EmployeeID = 1;
+
+
+-- Update existing records in EmployeeTraining with feedback and performance data
+UPDATE EmployeeTraining
+SET Feedback = 'Remained persistent', Performance = 'Good'
+WHERE EmployeeID = 2;
+
+UPDATE EmployeeTraining
+SET Feedback = 'Kinda lazy', Performance = 'Medium'
+WHERE EmployeeID = 3;
+
+SELECT ET.EmployeeID, E.FirstName, E.LastName, ET.Feedback, ET.Performance
+FROM EmployeeTraining ET
+INNER JOIN Employees E ON ET.EmployeeID = E.EmployeeID;
+
+
+SELECT
+    E.EmployeeID,
+    E.FirstName,
+    E.LastName,
+    E.Email,
+    E.Phone,
+    D.DepartmentName,
+    ET.Feedback,
+    ET.Performance,
+    TP.ProgramName,
+    TP.ProgramProvider,
+    TP.ProgramDate,
+    TP.DurationInHours,
+    TP.ProgramLocation
+FROM Employees E
+JOIN EmployeeTraining ET ON E.EmployeeID = ET.EmployeeID
+JOIN TrainingPrograms TP ON ET.ProgramID = TP.ProgramID
+JOIN Departments D ON E.DepartmentID = D.DepartmentID;

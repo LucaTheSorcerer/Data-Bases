@@ -118,3 +118,9 @@ CREATE TABLE EmployeeTraining (
     ProgramID INT REFERENCES TrainingPrograms(ProgramID),
     AttendanceDate DATE
 );
+
+
+alter table EmployeeTraining
+ADD Feedback NVARCHAR(MAX) NULL,
+Performance NVARCHAR(50) NULL
+
