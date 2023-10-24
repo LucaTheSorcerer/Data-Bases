@@ -20,8 +20,19 @@ INSERT INTO Projects (ProjectID, ProjectName, StartDate, EndDate) VALUES
     (2, 'Project B', '2023-03-01', '2023-04-30'),
     (3, 'Project C', '2023-02-15', '2023-05-15');
 
+
+
+
+
+
 INSERT INTO Projects (ProjectID, ProjectName, StartDate, EndDate) VALUES
     (4, 'Autonomous Driving', '2023-01-01', '2023-02-28')
+
+INSERT INTO Projects(PROJECTID, PROJECTNAME, STARTDATE, ENDDATE) VALUES
+    (5, 'Defect Detection', '2023-02-04', '2023-08-11'),
+    (6, 'Self Driving Trains', '2023-03-11', '2023-09-11')
+
+
 
 
 -- EmployeeProjects
@@ -444,7 +455,213 @@ INSERT INTO Employees (EmployeeID, FirstName, LastName, Email, Phone, Department
     (16, 'Charlotte', 'Harris', 'charlotte.harris@email.com', '555-123-4567', 1, 50000.00, 'Active');
 
 
+INSERT INTO Employees (EmployeeID, FirstName, LastName, Email, Phone, DepartmentID, SalaryAmount, CurrentStatus) VALUES
+    (17, 'Johnny', 'Woods', 'john.doe@gmail.com', '123-456-7890', 1, 55000.00, 'Active')
+
+
+
 INSERT INTO VacationRequests (RequestID, EmployeeID, StartDate, EndDate, Status) VALUES
     (11, 14, '2023-04-05', '2023-04-10', 'Approved'),
     (12, 15, '2023-04-07', '2023-04-15', 'Approved'),
     (13, 16, '2023-04-02', '2023-04-08', 'Approved');
+
+-- Assign employees to projects 1 and 2
+INSERT INTO EmployeeProjects (EmployeeID, ProjectID, IsValidAssignment)
+VALUES
+    (10, 5, 1),  -- John Doe to Project A
+    (11, 6, 1)  -- Jane Smith to Project A
+
+
+
+-- Assign employees to projects where they should be valid
+
+
+
+-- Check if EmployeeID 4 is working on ProjectID 1
+SELECT E.FirstName, E.LastName, P.ProjectName, EP.IsValidAssignment
+FROM Employees AS E
+JOIN EmployeeProjects AS EP ON E.EmployeeID = EP.EmployeeID
+JOIN Projects AS P ON EP.ProjectID = P.ProjectID
+WHERE E.EmployeeID = 1 -- Specify the EmployeeID you want to check
+ORDER BY P.ProjectName;
+
+ALTER TABLE Skills
+ADD SkillCategory NVARCHAR(50),
+    SkillLevel NVARCHAR(20);
+
+
+INSERT INTO Skills (SkillID, SkillName, SkillCategory, SkillLevel) VALUES
+    (4, 'Python Programming', 'Programming', 'Intermediate'),
+    (5, 'Web Development', 'Programming', 'Advanced'),
+    (6, 'Data Analysis', 'Analytics', 'Beginner');
+
+
+SELECT E.EmployeeID, E.FirstName, E.LastName, S.SkillName, S.SkillCategory, S.SkillLevel
+FROM Employees E
+JOIN EmployeeSkills ES ON E.EmployeeID = ES.EmployeeID
+JOIN Skills S ON ES.SkillID = S.SkillID;
+
+
+ALTER TABLE Projects
+ADD Budget DECIMAL(10, 2),
+    Status NVARCHAR(50),
+    Priority NVARCHAR(50);
+
+Alter TABLE Notifications
+ADD isRead BIT,
+    PriorityLevel NVARCHAR(50);
+
+
+SELECT E.EmployeeID, E.FirstName, E.LastName, N.NotificationID, N.Message,
+       N.Timestamp, N.Type, N.IsRead, N.PriorityLevel
+FROM Employees E
+LEFT JOIN Notifications N on E.EmployeeID = N.RecipientEmployeeID;
+
+
+ALTER TABLE EmployeeTraining
+ADD TrainingStatus NVARCHAR(50) NULL,
+    TrainingScore DECIMAL(5, 2) NULL,
+    CompletionDate DATE NULL
+
+
+SELECT
+    ET.EmployeeID,
+    ET.ProgramID,
+    ET.AttendanceDate,
+    ET.Feedback,
+    ET.Performance,
+    ET.TrainingStatus,
+    ET.TrainingScore,
+    ET.CompletionDate
+FROM EmployeeTraining ET;
+
+
+---================ LABOR 2 EX 1 ==================
+---a. already done
+---b. already done
+---c.
+-- Attempt to insert a record in the EmployeeSkills table with an EmployeeID that doesn't exist in the Employees table
+INSERT INTO EmployeeSkills (EmployeeID, SkillID)
+VALUES (100, 1); -- Assuming there is no EmployeeID 100 in the Employees table
+
+-- Attempt to insert a record in the EmployeeProjects table with a non-existent ProjectID
+INSERT INTO EmployeeProjects (EmployeeID, ProjectID)
+VALUES (1, 100); -- Assuming there is no Project with ProjectID 100 in the Projects table
+
+
+---d.
+
+---Update: update the salary in the engineering department with a salary above 60000
+UPDATE Employees
+SET SalaryAmount = 70000
+WHERE DepartmentID = 2 AND SalaryAmount > 60000;
+
+---Delete: Delete employees with no phone number
+DELETE FROM Employees
+Where Phone is null;
+
+
+---IN without nested query: Update the status of projects with specific IDs
+UPDATE Projects
+SET Status = 'Completed'
+WHERE ProjectID IN (1, 4)
+
+---Between: Update salary of employees from Sales department within a specified range
+UPDATE Employees
+SET SalaryAmount = 60000
+WHERE SalaryAmount BETWEEN 50000 AND 70000
+
+DELETE FROM Employees
+WHERE Email LIKE '%gmail.com'
+
+
+---================ LABOR 2 EX 2 ==================
+
+--1. Find employees with higher salary than all employees in the Sales department
+SELECT E.FirstName, E.LastName, E.SalaryAmount
+FROM Employees as E
+WHERE E.SalaryAmount > ALL (
+    Select E2.SalaryAmount
+    From Employees as E2
+    WHERE E2.DepartmentID = 3
+    )
+
+--2. Find all employees who worked on project in the Engineering Department with their total hours worked
+SELECT E.FirstName, E.LastName, P.ProjectName, SUM(TT.HoursWorked) AS TotalHoursWorked
+FROM Employees AS E
+JOIN EmployeeProjects AS EP ON E.EmployeeID = EP.EmployeeID
+JOIN Projects AS P on EP.ProjectID = P.ProjectID
+JOIN Departments AS D ON E.DepartmentID = D.DepartmentID
+LEFT JOIN TimeTracking AS TT on E.EmployeeID = TT.EmployeeID
+WHERE D.DepartmentID = 1
+GROUP BY E.FirstName, E.LastName, P.ProjectName
+
+
+---3. OUTER JOIN -> Find employees and their assigned projects, including the ones
+--without a project assigned
+
+SELECT E.FirstName, E.LastName, P.ProjectName
+FROM Employees AS E
+LEFT JOIN EmployeeProjects AS EP ON E.EmployeeID = EP.EmployeeID
+LEFT JOIN Projects AS P ON EP.ProjectID = P.ProjectID
+
+
+---4. GROUP BY with AVG and MAX -> average salary and max salary in each department
+SELECT D.DepartmentName, AVG(E.SalaryAmount) AS AvgSalary, MAX(E.SalaryAmount) AS MaxSalary
+FROM Employees AS E
+JOIN Departments AS D ON E.DepartmentID = D.DepartmentID
+GROUP BY D.DepartmentName;
+
+
+---5. HAVING with AVG and COUNT -> find departments where the avg salary is above 60000 and the nr of
+---employees is at least 3
+SELECT D.DepartmentName, AVG(E.SalaryAmount) AS AvgSalary, COUNT(E.EmployeeID) as EmployeeCount
+FROM Employees AS E
+JOIN Departments AS D on E.DepartmentID = D.DepartmentID
+GROUP BY D.DepartmentName
+HAVING AVG(E.SalaryAmount) > 60000 AND COUNT(E.EmployeeID) > 3
+
+---6. UNION between sets -> find employees who have skills in either Java or SQL
+SELECT E.FirstName, E.LastName
+FROM Employees AS E
+JOIN EmployeeSkills AS ES ON E.EmployeeID = ES.EmployeeID
+JOIN Skills AS S ON ES.SkillID = S.SkillID
+WHERE S.SkillName = 'Java'
+UNION
+SELECT E.FirstName, E.LastName
+FROM Employees AS E
+JOIN EmployeeSkills AS ES ON E.EmployeeID = ES.EmployeeID
+JOIN Skills AS S on ES.SkillID = S.SkillID
+WHERE S.SkillName = 'SQL';
+
+---7. INTERSECT between sets -> find employees who have skills in both Java or SQL
+SELECT E.FirstName, E.LastName
+FROM Employees AS E
+JOIN EmployeeSkills AS ES ON E.EmployeeID = ES.EmployeeID
+JOIN Skills AS S ON ES.SkillID = S.SkillID
+WHERE S.SkillName = 'Java'
+INTERSECT
+SELECT E.FirstName, E.LastName
+FROM Employees AS E
+JOIN EmployeeSkills AS ES ON E.EmployeeID = ES.EmployeeID
+JOIN Skills AS S ON ES.SkillID = S.SkillID
+WHERE S.SkillName = 'SQL';
+
+---8. INTERSECT between sets -> find employees who have skills in Java but not in SQL
+SELECT E.FirstName, E.LastName
+FROM Employees AS E
+JOIN EmployeeSkills AS ES ON E.EmployeeID = ES.EmployeeID
+JOIN Skills AS S ON ES.SkillID = S.SkillID
+WHERE S.SkillName = 'Java'
+EXCEPT
+SELECT E.FirstName, E.LastName
+FROM Employees AS E
+JOIN EmployeeSkills AS ES ON E.EmployeeID = ES.EmployeeID
+JOIN Skills AS S ON ES.SkillID = S.SkillID
+WHERE S.SkillName = 'SQL';
+
+
+
+SELECT TOP 3 E.FirstName, E.LastName, E.SalaryAmount
+FROM Employees AS E
+ORDER BY E.SalaryAmount DESC;
