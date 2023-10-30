@@ -577,6 +577,23 @@ WHERE Email LIKE '%gmail.com'
 
 ---================ LABOR 2 EX 2 ==================
 
+---6. UNION between sets -> find employees who have skills in either Java or SQL
+SELECT E.FirstName, E.LastName
+FROM Employees AS E
+JOIN EmployeeSkills AS ES ON E.EmployeeID = ES.EmployeeID
+JOIN Skills AS S ON ES.SkillID = S.SkillID
+WHERE S.SkillName = 'Java'
+UNION
+SELECT E.FirstName, E.LastName
+FROM Employees AS E
+JOIN EmployeeSkills AS ES ON E.EmployeeID = ES.EmployeeID
+JOIN Skills AS S on ES.SkillID = S.SkillID
+WHERE S.SkillName = 'SQL';
+
+
+
+
+
 --1. Find employees with higher salary than all employees in the Sales department
 SELECT E.FirstName, E.LastName, E.SalaryAmount
 FROM Employees as E
@@ -621,18 +638,6 @@ JOIN Departments AS D on E.DepartmentID = D.DepartmentID
 GROUP BY D.DepartmentName
 HAVING AVG(E.SalaryAmount) > 60000 AND COUNT(E.EmployeeID) > 3
 
----6. UNION between sets -> find employees who have skills in either Java or SQL
-SELECT E.FirstName, E.LastName
-FROM Employees AS E
-JOIN EmployeeSkills AS ES ON E.EmployeeID = ES.EmployeeID
-JOIN Skills AS S ON ES.SkillID = S.SkillID
-WHERE S.SkillName = 'Java'
-UNION
-SELECT E.FirstName, E.LastName
-FROM Employees AS E
-JOIN EmployeeSkills AS ES ON E.EmployeeID = ES.EmployeeID
-JOIN Skills AS S on ES.SkillID = S.SkillID
-WHERE S.SkillName = 'SQL';
 
 ---7. INTERSECT between sets -> find employees who have skills in both Java or SQL
 SELECT E.FirstName, E.LastName
@@ -665,3 +670,219 @@ WHERE S.SkillName = 'SQL';
 SELECT TOP 3 E.FirstName, E.LastName, E.SalaryAmount
 FROM Employees AS E
 ORDER BY E.SalaryAmount DESC;
+
+
+-- Modify EmployeeSkills
+ALTER TABLE EmployeeSkills
+ADD SkillLevel NVARCHAR(20);
+
+-- Remove SkillLevel from Skills
+ALTER TABLE Skills
+DROP COLUMN SkillLevel;
+
+
+INSERT INTO Tasks (TaskID, TaskName, Description, ProjectID, AssignedTo, Status) VALUES
+    (4, 'Develop Server Side', 'Write Server Side in Rust', 1, 1, 'In Progress');
+
+
+-- TimeTracking
+INSERT INTO TimeTracking (TimeEntryID, EmployeeID, TaskID, Date, HoursWorked) VALUES
+    (4, 1, 4, '2023-05-21', 10.0);
+
+--1. Employees who have worked on more than one task
+SELECT E.FirstName, E.LastName, T.TaskName, COUNT(TT.TaskID) AS TaskCount, SUM(TT.HoursWorked) AS TotalHoursWorked
+FROM Employees AS E
+JOIN Tasks AS T ON E.EmployeeID = T.AssignedTo
+JOIN TimeTracking AS TT ON E.EmployeeID = TT.EmployeeID AND T.TaskID = TT.TaskID
+WHERE E.EmployeeID IN (
+    SELECT E.EmployeeID
+    FROM Employees AS E
+    JOIN Tasks AS T ON E.EmployeeID = T.AssignedTo
+    JOIN TimeTracking AS TT ON E.EmployeeID = TT.EmployeeID AND T.TaskID = TT.TaskID
+    GROUP BY E.EmployeeID
+    HAVING COUNT(TT.TaskID) > 1
+)
+GROUP BY E.EmployeeID, E.FirstName, E.LastName, T.TaskName;
+
+
+WITH TaskCounts AS (
+    SELECT E.EmployeeID, COUNT(DISTINCT T.TaskID) AS TaskCount
+    FROM Employees AS E
+    JOIN Tasks AS T ON E.EmployeeID = T.AssignedTo
+    JOIN TimeTracking AS TT ON E.EmployeeID = TT.EmployeeID AND T.TaskID = TT.TaskID
+    GROUP BY E.EmployeeID
+    HAVING COUNT(DISTINCT T.TaskID) > 1
+)
+
+SELECT E.FirstName, E.LastName, T.TaskName,
+       TC.TaskCount,
+       SUM(TT.HoursWorked) AS TotalHoursWorked
+FROM Employees AS E
+JOIN Tasks AS T ON E.EmployeeID = T.AssignedTo
+JOIN TimeTracking AS TT ON E.EmployeeID = TT.EmployeeID AND T.TaskID = TT.TaskID
+JOIN TaskCounts AS TC ON E.EmployeeID = TC.EmployeeID
+GROUP BY E.EmployeeID, E.FirstName, E.LastName, T.TaskName, TC.TaskCount
+
+
+SELECT E.FirstName, E.LastName, D.DepartmentName, COUNT(DISTINCT T.TaskID) AS TaskCount
+FROM Employees AS E
+JOIN Departments AS D ON E.DepartmentID = D.DepartmentID
+JOIN Tasks AS T ON E.EmployeeID = T.AssignedTo
+JOIN TimeTracking AS TT ON E.EmployeeID = TT.EmployeeID AND T.TaskID = TT.TaskID
+GROUP BY E.EmployeeID, E.FirstName, E.LastName, D.DepartmentName
+HAVING COUNT(DISTINCT T.TaskID) > 1;
+
+
+-- 1. 2 aggregate function, 3 joins, 1 groupby
+SELECT E.FirstName, E.LastName, D.DepartmentName,
+       COUNT(DISTINCT T.TaskID) AS TotalTasksWorked,
+       SUM(TT.HoursWorked) AS TotalHoursWorked
+FROM Employees AS E
+JOIN Departments AS D ON E.DepartmentID = D.DepartmentID
+JOIN Tasks AS T ON E.EmployeeID = T.AssignedTo
+JOIN TimeTracking AS TT ON E.EmployeeID = TT.EmployeeID AND T.TaskID = TT.TaskID
+GROUP BY E.EmployeeID, E.FirstName, E.LastName, D.DepartmentName;
+
+
+
+SELECT DISTINCT E.FirstName, E.LastName
+FROM Employees E
+JOIN EmployeeSkills ES ON E.EmployeeID = ES.EmployeeID
+JOIN Skills S ON ES.SkillID = S.SkillID
+WHERE S.SkillName = 'Java'
+    AND E.EmployeeID IN (
+        SELECT EmployeeID
+        FROM EmployeeProjects
+        WHERE EmployeeID = E.EmployeeID
+    )
+    AND E.EmployeeID IN (
+        SELECT EmployeeID
+        FROM EmployeeSkills ES2
+        JOIN Skills S2 ON ES2.SkillID = S2.SkillID
+        WHERE S2.SkillName = 'SQL'
+    )
+UNION
+SELECT DISTINCT E.FirstName, E.LastName
+FROM Employees E
+JOIN EmployeeSkills ES ON E.EmployeeID = ES.EmployeeID
+JOIN Skills S ON ES.SkillID = S.SkillID
+WHERE S.SkillName = 'SQL'
+    AND E.EmployeeID IN (
+        SELECT EmployeeID
+        FROM EmployeeProjects
+        WHERE EmployeeID = E.EmployeeID
+    )
+    AND E.EmployeeID IN (
+        SELECT EmployeeID
+        FROM EmployeeSkills ES2
+        JOIN Skills S2 ON ES2.SkillID = S2.SkillID
+        WHERE S2.SkillName = 'Java'
+    );
+
+
+
+SELECT E.FirstName, E.LastName
+FROM Employees E
+JOIN EmployeeSkills ES ON E.EmployeeID = ES.EmployeeID
+JOIN Skills S ON ES.SkillID = S.SkillID
+WHERE S.SkillName = 'Java'
+INTERSECT
+SELECT E.FirstName, E.LastName
+FROM Employees E
+JOIN EmployeeSkills ES ON E.EmployeeID = ES.EmployeeID
+JOIN Skills S ON ES.SkillID = S.SkillID
+WHERE S.SkillName = 'SQL'
+AND E.EmployeeID IN (
+    SELECT EP.EmployeeID
+    FROM EmployeeProjects EP
+    WHERE EP.ProjectID IN (
+        SELECT ProjectID
+        FROM Projects
+        WHERE Status = 'Completed'
+    )
+)
+AND E.DepartmentID = (
+    SELECT DepartmentID
+    FROM Departments
+    WHERE DepartmentName = 'Engineering'
+);
+
+
+
+WITH TopThreeSalaries AS (
+    SELECT DISTINCT TOP 3 SalaryAmount
+    FROM Employees
+    ORDER BY SalaryAmount DESC
+)
+
+SELECT E1.FirstName, E1.LastName, E1.SalaryAmount
+FROM Employees E1
+WHERE E1.SalaryAmount >= (
+    SELECT TOP 1 SalaryAmount
+    FROM TopThreeSalaries
+    ORDER BY SalaryAmount
+)
+ORDER BY E1.SalaryAmount DESC;
+
+
+
+SELECT E.FirstName, E.LastName, D.DepartmentName, P.ProjectName
+FROM Employees E
+JOIN EmployeeProjects EP ON E.EmployeeID = EP.EmployeeID
+JOIN Projects P ON EP.ProjectID = P.ProjectID
+JOIN Departments D ON E.DepartmentID = D.DepartmentID
+WHERE E.EmployeeID IN (
+    SELECT E1.EmployeeID
+    FROM Employees E1
+    JOIN EmployeeProjects EP1 ON E1.EmployeeID = EP1.EmployeeID
+    JOIN Projects P1 ON EP1.ProjectID = P1.ProjectID
+    WHERE P1.Status = 'Completed'
+    INTERSECT
+    SELECT E2.EmployeeID
+    FROM Employees E2
+    WHERE E2.DepartmentID = (
+        SELECT DepartmentID
+        FROM Departments
+        WHERE DepartmentName = 'Engineering'
+    )
+)
+ORDER BY E.FirstName, E.LastName;
+
+
+
+
+SELECT E.FirstName, E.LastName, P.ProjectName, D.DepartmentName, COUNT(T.TaskID) AS TotalTasks
+FROM Employees E
+JOIN EmployeeProjects EP ON E.EmployeeID = EP.EmployeeID
+JOIN Projects P ON EP.ProjectID = P.ProjectID
+JOIN Departments D ON E.DepartmentID = D.DepartmentID
+FULL OUTER JOIN Tasks T ON T.ProjectID = P.ProjectID AND T.AssignedTo = E.EmployeeID
+WHERE E.EmployeeID = ANY (
+    SELECT EmployeeID
+    FROM EmployeeSkills ES
+    WHERE ES.SkillID = ALL (
+        SELECT SkillID
+        FROM Skills
+        WHERE SkillName = 'Python'
+    )
+)
+GROUP BY E.FirstName, E.LastName, P.ProjectName, D.DepartmentName
+HAVING COUNT(T.TaskID) > 0
+ORDER BY TotalTasks DESC;
+
+
+
+SELECT E.FirstName, E.LastName, P.ProjectName
+FROM Employees E
+LEFT JOIN EmployeeProjects EP ON E.EmployeeID = EP.EmployeeID
+LEFT JOIN Projects P ON EP.ProjectID = P.ProjectID;
+
+
+
+
+
+---?????????------- de intrebat
+ALTER TABLE TimeTracking
+DROP COLUMN EmployeeID;
+
+
