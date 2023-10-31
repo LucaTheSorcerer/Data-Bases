@@ -925,25 +925,37 @@ ORDER BY E.EmployeeID;
 
 
 --INSERT DATA TO CHECK QUERY
----employees who haven't worked on a project after 2023-01-01
+---count of skills + filter employees who were not involved in projects with a higher end date
+
 SELECT E.EmployeeID, E.FirstName, E.LastName, D.DepartmentName,
-       COUNT(EP.ProjectID) AS NumberOfProjects,
+       COUNT(ES.SkillID) AS NumberOfSkills,
        MAX(P.EndDate) AS LatestProjectEndDate
 FROM Employees E
 JOIN Departments D ON E.DepartmentID = D.DepartmentID
-LEFT JOIN EmployeeProjects EP ON E.EmployeeID = EP.EmployeeID
-LEFT JOIN Projects P ON EP.ProjectID = P.ProjectID
+LEFT JOIN EmployeeSkills ES ON E.EmployeeID = ES.EmployeeID
+LEFT JOIN Projects P ON EXISTS (
+    SELECT *
+    FROM EmployeeProjects EP
+    WHERE EP.EmployeeID = E.EmployeeID
+      AND EP.ProjectID = P.ProjectID
+)
 GROUP BY E.EmployeeID, E.FirstName, E.LastName, D.DepartmentName
 EXCEPT
 SELECT E.EmployeeID, E.FirstName, E.LastName, D.DepartmentName,
-       COUNT(EP.ProjectID) AS NumberOfProjects,
+       COUNT(ES.SkillID) AS NumberOfSkills,
        MAX(P.EndDate) AS LatestProjectEndDate
 FROM Employees E
 JOIN Departments D ON E.DepartmentID = D.DepartmentID
-LEFT JOIN EmployeeProjects EP ON E.EmployeeID = EP.EmployeeID
-LEFT JOIN Projects P ON EP.ProjectID = P.ProjectID
-WHERE P.EndDate > '2023-01-01' -- Example date used for filtering
+LEFT JOIN EmployeeSkills ES ON E.EmployeeID = ES.EmployeeID
+LEFT JOIN Projects P ON EXISTS (
+    SELECT *
+    FROM EmployeeProjects EP
+    WHERE EP.EmployeeID = E.EmployeeID
+      AND EP.ProjectID = P.ProjectID
+      AND P.EndDate > '2023-12-12'
+)
 GROUP BY E.EmployeeID, E.FirstName, E.LastName, D.DepartmentName;
+
 
 
 --- count of completed training programs and the latest training date
