@@ -790,7 +790,20 @@ WHERE S.SkillName = 'SQL'
     );
 
 
---employees who know java and sql, with active proj in eng
+-- SELECT DISTINCT E.FirstName, E.LastName
+-- FROM Employees E
+-- JOIN EmployeeSkills ES ON E.EmployeeID = ES.EmployeeID
+-- JOIN Skills S ON ES.SkillID = S.SkillID
+-- WHERE
+--     (S.SkillName = 'Java' OR S.SkillName = 'SQL')  -- Checking for 'Java' or 'SQL'
+--     AND E.EmployeeID IN (
+--         SELECT EmployeeID
+--         FROM EmployeeProjects
+--         WHERE EmployeeID = E.EmployeeID
+--     );
+
+
+--employees who know java and sql, with completed proj in eng
 SELECT E.FirstName, E.LastName
 FROM Employees E
 JOIN EmployeeSkills ES ON E.EmployeeID = ES.EmployeeID
@@ -819,20 +832,19 @@ AND E.DepartmentID = (
 
 
 --top three salaries in descending order
-WITH TopThreeSalaries AS (
-    SELECT DISTINCT TOP 3 SalaryAmount
-    FROM Employees
-    ORDER BY SalaryAmount DESC
-)
-
 SELECT E1.FirstName, E1.LastName, E1.SalaryAmount
 FROM Employees E1
 WHERE E1.SalaryAmount >= (
     SELECT TOP 1 SalaryAmount
-    FROM TopThreeSalaries
+    FROM (
+        SELECT DISTINCT TOP 3 SalaryAmount
+        FROM Employees
+        ORDER BY SalaryAmount DESC
+    ) AS TopThreeSalaries
     ORDER BY SalaryAmount
 )
 ORDER BY E1.SalaryAmount DESC;
+
 
 
 --employees in eng department with completed orjects
@@ -879,6 +891,8 @@ WHERE E.EmployeeID = ANY (
 GROUP BY E.FirstName, E.LastName, P.ProjectName, D.DepartmentName
 HAVING COUNT(T.TaskID) > 0
 ORDER BY TotalTasks DESC;
+
+
 
 
 --emloyee with advanced skill in java, completed training programs, is active and is not involved in projects
@@ -932,13 +946,15 @@ WHERE P.EndDate > '2023-01-01' -- Example date used for filtering
 GROUP BY E.EmployeeID, E.FirstName, E.LastName, D.DepartmentName;
 
 
---- count of training programs and the latest training date
+--- count of completed training programs and the latest training date
+
 SELECT E.EmployeeID, E.FirstName, E.LastName,
        COUNT(ET.ProgramID) AS TotalTrainingPrograms,
-       MAX(TP.ProgramDate) AS LatestTrainingDate
+       MAX(TP.ProgramDate) AS CompletionTrainingDate
 FROM Employees E
 JOIN EmployeeTraining ET ON E.EmployeeID = ET.EmployeeID
 JOIN TrainingPrograms TP ON ET.ProgramID = TP.ProgramID
+WHERE ET.TrainingStatus = 'Completed'
 GROUP BY E.EmployeeID, E.FirstName, E.LastName
 
 UNION
@@ -949,8 +965,10 @@ SELECT E.EmployeeID, E.FirstName, E.LastName,
 FROM Employees E
 LEFT JOIN EmployeeTraining ET ON E.EmployeeID = ET.EmployeeID
 LEFT JOIN TrainingPrograms TP ON ET.ProgramID = TP.ProgramID
+WHERE ET.TrainingStatus = 'Completed' OR ET.TrainingStatus IS NULL
 GROUP BY E.EmployeeID, E.FirstName, E.LastName
 HAVING COUNT(ET.ProgramID) = 0;
+
 
 
 --total projects and the date of the latest projects end date
