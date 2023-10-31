@@ -59,6 +59,10 @@ INSERT INTO EmployeeSkills (EmployeeID, SkillID) VALUES
     (2, 1),
     (3, 3);
 
+
+INSERT INTO EmployeeSkills (EmployeeID, SkillID, SkillLevel) VALUES
+    (16, 1, 'Advanced')
+
 -- Tasks
 INSERT INTO Tasks (TaskID, TaskName, Description, ProjectID, AssignedTo, Status) VALUES
     (1, 'Design UI', 'Create user interface design', 1, 1, 'In Progress'),
@@ -162,6 +166,11 @@ INSERT INTO EmployeeTraining (EmployeeID, ProgramID, AttendanceDate, Feedback, P
     (2, 2, '2023-06-17', 'Great workshop!', 'Satisfactory'),
     (3, 3, '2023-07-22', 'Very informative', 'Excellent performance'),
     (1, 4, '2023-08-27', 'Good content', 'Good performance');
+
+
+
+INSERT INTO EmployeeTraining (EmployeeID, ProgramID, AttendanceDate, Feedback, Performance, TrainingStatus, TrainingScore, CompletionDate) VALUES
+    (16, 3, '2023-05-12', 'Excellent training!', 'Highly rated', 'Completed', '100.0', '2022-12-11');
 
 
 -- Employees
@@ -734,6 +743,7 @@ HAVING COUNT(DISTINCT T.TaskID) > 1;
 
 
 -- 1. 2 aggregate function, 3 joins, 1 groupby
+-- total hours worked for total tasks
 SELECT E.FirstName, E.LastName, D.DepartmentName,
        COUNT(DISTINCT T.TaskID) AS TotalTasksWorked,
        SUM(TT.HoursWorked) AS TotalHoursWorked
@@ -744,7 +754,7 @@ JOIN TimeTracking AS TT ON E.EmployeeID = TT.EmployeeID AND T.TaskID = TT.TaskID
 GROUP BY E.EmployeeID, E.FirstName, E.LastName, D.DepartmentName;
 
 
-
+--employees who have skill in either java or sql and work on projects
 SELECT DISTINCT E.FirstName, E.LastName
 FROM Employees E
 JOIN EmployeeSkills ES ON E.EmployeeID = ES.EmployeeID
@@ -780,7 +790,7 @@ WHERE S.SkillName = 'SQL'
     );
 
 
-
+--employees who know java and sql, with active proj in eng
 SELECT E.FirstName, E.LastName
 FROM Employees E
 JOIN EmployeeSkills ES ON E.EmployeeID = ES.EmployeeID
@@ -808,7 +818,7 @@ AND E.DepartmentID = (
 );
 
 
-
+--top three salaries in descending order
 WITH TopThreeSalaries AS (
     SELECT DISTINCT TOP 3 SalaryAmount
     FROM Employees
@@ -825,7 +835,7 @@ WHERE E1.SalaryAmount >= (
 ORDER BY E1.SalaryAmount DESC;
 
 
-
+--employees in eng department with completed orjects
 SELECT E.FirstName, E.LastName, D.DepartmentName, P.ProjectName
 FROM Employees E
 JOIN EmployeeProjects EP ON E.EmployeeID = EP.EmployeeID
@@ -850,7 +860,7 @@ ORDER BY E.FirstName, E.LastName;
 
 
 
-
+--total tasks of employees worked on projects and that have skills in python
 SELECT E.FirstName, E.LastName, P.ProjectName, D.DepartmentName, COUNT(T.TaskID) AS TotalTasks
 FROM Employees E
 JOIN EmployeeProjects EP ON E.EmployeeID = EP.EmployeeID
@@ -869,6 +879,121 @@ WHERE E.EmployeeID = ANY (
 GROUP BY E.FirstName, E.LastName, P.ProjectName, D.DepartmentName
 HAVING COUNT(T.TaskID) > 0
 ORDER BY TotalTasks DESC;
+
+
+--emloyee with advanced skill in java, completed training programs, is active and is not involved in projects
+SELECT E.EmployeeID, E.FirstName, E.LastName, TP.ProgramName
+FROM Employees E
+JOIN EmployeeTraining ET ON E.EmployeeID = ET.EmployeeID
+JOIN TrainingPrograms TP ON ET.ProgramID = TP.ProgramID
+WHERE E.EmployeeID NOT IN (
+    SELECT E1.EmployeeID
+    FROM Employees E1
+    JOIN EmployeeProjects EP ON E1.EmployeeID = EP.EmployeeID
+    JOIN Projects P ON EP.ProjectID = P.ProjectID
+    JOIN Tasks T ON P.ProjectID = T.ProjectID AND T.AssignedTo = E1.EmployeeID
+)
+AND E.CurrentStatus = 'Active'
+AND E.EmployeeID IN (
+    SELECT E2.EmployeeID
+    FROM Employees E2
+    JOIN EmployeeSkills ES ON E2.EmployeeID = ES.EmployeeID
+    JOIN Skills S ON ES.SkillID = S.SkillID
+    WHERE S.SkillName = 'Java'
+    AND ES.SkillLevel = 'Advanced'
+)
+AND E.EmployeeID IN (
+    SELECT EmployeeID
+    FROM EmployeeTraining
+)
+GROUP BY E.EmployeeID, E.FirstName, E.LastName, TP.ProgramName
+ORDER BY E.EmployeeID;
+
+
+--INSERT DATA TO CHECK QUERY
+---employees who haven't worked on a project after 2023-01-01
+SELECT E.EmployeeID, E.FirstName, E.LastName, D.DepartmentName,
+       COUNT(EP.ProjectID) AS NumberOfProjects,
+       MAX(P.EndDate) AS LatestProjectEndDate
+FROM Employees E
+JOIN Departments D ON E.DepartmentID = D.DepartmentID
+LEFT JOIN EmployeeProjects EP ON E.EmployeeID = EP.EmployeeID
+LEFT JOIN Projects P ON EP.ProjectID = P.ProjectID
+GROUP BY E.EmployeeID, E.FirstName, E.LastName, D.DepartmentName
+EXCEPT
+SELECT E.EmployeeID, E.FirstName, E.LastName, D.DepartmentName,
+       COUNT(EP.ProjectID) AS NumberOfProjects,
+       MAX(P.EndDate) AS LatestProjectEndDate
+FROM Employees E
+JOIN Departments D ON E.DepartmentID = D.DepartmentID
+LEFT JOIN EmployeeProjects EP ON E.EmployeeID = EP.EmployeeID
+LEFT JOIN Projects P ON EP.ProjectID = P.ProjectID
+WHERE P.EndDate > '2023-01-01' -- Example date used for filtering
+GROUP BY E.EmployeeID, E.FirstName, E.LastName, D.DepartmentName;
+
+
+--- count of training programs and the latest training date
+SELECT E.EmployeeID, E.FirstName, E.LastName,
+       COUNT(ET.ProgramID) AS TotalTrainingPrograms,
+       MAX(TP.ProgramDate) AS LatestTrainingDate
+FROM Employees E
+JOIN EmployeeTraining ET ON E.EmployeeID = ET.EmployeeID
+JOIN TrainingPrograms TP ON ET.ProgramID = TP.ProgramID
+GROUP BY E.EmployeeID, E.FirstName, E.LastName
+
+UNION
+
+SELECT E.EmployeeID, E.FirstName, E.LastName,
+       COUNT(ET.ProgramID) AS TotalTrainingPrograms,
+       MAX(TP.ProgramDate) AS LatestTrainingDate
+FROM Employees E
+LEFT JOIN EmployeeTraining ET ON E.EmployeeID = ET.EmployeeID
+LEFT JOIN TrainingPrograms TP ON ET.ProgramID = TP.ProgramID
+GROUP BY E.EmployeeID, E.FirstName, E.LastName
+HAVING COUNT(ET.ProgramID) = 0;
+
+
+--total projects and the date of the latest projects end date
+SELECT E.FirstName,
+    E.LastName,
+    D.DepartmentName,
+    COUNT(DISTINCT EP.ProjectID) AS TotalProjects,
+    MAX(P.EndDate) AS LatestProjectEndDate
+FROM Employees E
+JOIN Departments D ON E.DepartmentID = D.DepartmentID
+JOIN EmployeeProjects EP ON E.EmployeeID = EP.EmployeeID
+JOIN Projects P ON EP.ProjectID = P.ProjectID
+WHERE E.CurrentStatus = 'Active'
+GROUP BY E.FirstName, E.LastName, D.DepartmentName
+ORDER BY TotalProjects DESC, LatestProjectEndDate;
+
+
+--all employees that assigned work on projects and that do not have assigned projects and their tasks
+SELECT E.FirstName, E.LastName, D.DepartmentName, P.ProjectName, COUNT(T.TaskID) AS TotalTasks
+FROM Employees E
+JOIN Departments D ON E.DepartmentID = D.DepartmentID
+LEFT JOIN EmployeeProjects EP ON E.EmployeeID = EP.EmployeeID
+LEFT JOIN Projects P ON EP.ProjectID = P.ProjectID
+LEFT JOIN Tasks T ON T.AssignedTo = E.EmployeeID AND T.ProjectID = P.ProjectID
+GROUP BY E.FirstName, E.LastName, D.DepartmentName, P.ProjectName
+HAVING COUNT(T.TaskID) > 0
+
+UNION
+
+SELECT E.FirstName, E.LastName, D.DepartmentName, 'Not Assigned' AS ProjectName, 0 AS TotalTasks
+FROM Employees E
+JOIN Departments D ON E.DepartmentID = D.DepartmentID
+WHERE E.EmployeeID NOT IN (
+    SELECT DISTINCT EP.EmployeeID
+    FROM EmployeeProjects EP
+)
+ORDER BY TotalTasks DESC, FirstName, LastName;
+
+
+
+
+
+
 
 
 
