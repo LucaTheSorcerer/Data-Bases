@@ -2,8 +2,6 @@ use employeeLastV
 
 
 -- 1.
--- total hours worked for total tasks
-
 SELECT E.FirstName, E.LastName, D.DepartmentName,
        COUNT(DISTINCT T.TaskID) AS TotalTasksWorked,
        SUM(TT.HoursWorked) AS TotalHoursWorked
@@ -20,19 +18,8 @@ WHERE E.EmployeeID = ANY (
 GROUP BY E.FirstName, E.LastName, D.DepartmentName, E.EmployeeID;
 
 
--- 2.
---employees who have skill in either java or sql and work on projects
--- SELECT E.FirstName, E.LastName, D.DepartmentName, P.ProjectName
--- FROM Employees E
--- JOIN Departments D ON E.DepartmentID = D.DepartmentID
--- JOIN EmployeeProjects EP ON E.EmployeeID = EP.EmployeeID
--- JOIN Projects P ON EP.ProjectID = P.ProjectID
--- WHERE (D.DepartmentName = 'Engineering' OR D.DepartmentName = 'Marketing')
---     AND E.CurrentStatus = 'Active'
--- ORDER BY E.FirstName, E.LastName, D.DepartmentName, P.ProjectName;
 
-
--- Find employees assigned to high-priority projects OR with specific skills
+--2.
 SELECT DISTINCT E.EmployeeID, E.FirstName, E.LastName, D.DepartmentName
 FROM Employees E
 JOIN Departments D ON E.DepartmentID = D.DepartmentID
@@ -41,13 +28,17 @@ LEFT JOIN Projects P ON EP.ProjectID = P.ProjectID
 LEFT JOIN EmployeeSkills ES ON E.EmployeeID = ES.EmployeeID
 LEFT JOIN Skills S ON ES.SkillID = S.SkillID
 WHERE P.Priority = 'High'
-    OR S.SkillName IN ('Java', 'SQL')
-ORDER BY E.EmployeeID;
-
+    OR E.EmployeeID IN (
+        SELECT E2.EmployeeID
+        FROM Employees E2
+        JOIN EmployeeSkills ES2 ON E2.EmployeeID = ES2.EmployeeID
+        JOIN Skills S2 ON ES2.SkillID = S2.SkillID
+        WHERE S2.SkillName = 'Java' OR S2.SkillName = 'SQL'
+    )
+ORDER BY E.FirstName;
 
 
 -- 3.
---employees who know java and sql, with active proj in eng
 SELECT E.FirstName, E.LastName
 FROM Employees E
 JOIN EmployeeSkills ES ON E.EmployeeID = ES.EmployeeID
@@ -75,9 +66,7 @@ AND E.DepartmentID = (
 );
 
 
-
 -- 4.
---top three salaries in descending order
 SELECT E1.FirstName, E1.LastName, E1.SalaryAmount
 FROM Employees E1
 WHERE E1.SalaryAmount IN (
@@ -89,7 +78,6 @@ ORDER BY E1.SalaryAmount DESC;
 
 
 -- 5.
---employees in eng department with completed projects
 SELECT E.FirstName, E.LastName, D.DepartmentName, P.ProjectName
 FROM Employees E
 JOIN EmployeeProjects EP ON E.EmployeeID = EP.EmployeeID
@@ -113,8 +101,6 @@ WHERE E.EmployeeID IN (
 ORDER BY E.FirstName;
 
 
-
-
 -- 6.
 SELECT E.FirstName, E.LastName, E.SalaryAmount, D.DepartmentName
 FROM Employees E
@@ -127,12 +113,7 @@ WHERE E.SalaryAmount >= ALL (
 )
 
 
-
--- List employees with the highest average training scores in each department
-
-
 -- 7.
---emloyee with advanced skill in java, completed training programs, is active and is not involved in projects
 SELECT E.EmployeeID, E.FirstName, E.LastName, TP.ProgramName
 FROM Employees E
 JOIN EmployeeTraining ET ON E.EmployeeID = ET.EmployeeID
@@ -158,11 +139,10 @@ AND E.EmployeeID IN (
     FROM EmployeeTraining
 )
 GROUP BY E.EmployeeID, E.FirstName, E.LastName, TP.ProgramName
-ORDER BY E.EmployeeID;
+ORDER BY E.FirstName;
 
 
 -- 8.
--- List of employees who have not attended any training programs
 SELECT E.EmployeeID, E.FirstName, E.LastName, D.DepartmentName,
        COUNT(ET.ProgramID) AS TotalTrainingPrograms
 FROM Employees E
@@ -179,7 +159,6 @@ GROUP BY E.EmployeeID, E.FirstName, E.LastName, D.DepartmentName;
 
 
 -- 9.
---- count of training programs and the latest training date
 SELECT E.EmployeeID, E.FirstName, E.LastName,
        COUNT(ET.ProgramID) AS TotalTrainingPrograms,
        MAX(TP.ProgramDate) AS LatestTrainingDate
@@ -201,7 +180,6 @@ HAVING COUNT(ET.ProgramID) = 0;
 
 
 -- 10.
---total projects and the date of the latest projects end date
 SELECT E.FirstName,
     E.LastName,
     D.DepartmentName,

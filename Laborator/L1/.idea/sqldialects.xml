@@ -2,6 +2,7 @@
 <project version="4">
   <component name="SqlDialectMappings">
     <file url="file://$APPLICATION_CONFIG_DIR$/consoles/db/c59d417c-70c4-4613-85c7-75eabeb592e7/console_1.sql" dialect="AZURE" />
+    <file url="file://$PROJECT_DIR$/L3_Procedures.sql" dialect="TSQL" />
     <file url="file://$PROJECT_DIR$/employeeLastV.sql" dialect="AZURE" />
     <file url="file://$PROJECT_DIR$/employeeManagement.sql" dialect="GenericSQL" />
     <file url="file://$PROJECT_DIR$/employeeManagementSystem.sql" dialect="AZURE" />
