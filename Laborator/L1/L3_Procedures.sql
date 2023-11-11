@@ -70,7 +70,7 @@ BEGIN
    EXEC sp_executesql @sql;
 END;
 
-EXEC ChangeColumnType 'Employees', 'Email', 'NVARCHAR(150)';
+EXEC ChangeColumnType 'Employees', 'Email', 'CHAR(150)';
 
 
 CREATE OR ALTER PROCEDURE RollBackChangeColumnType(@tableName NVARCHAR(100), @columnName NVARCHAR(100), @originalDateType NVARCHAR(100))
@@ -165,6 +165,7 @@ AS
     END
 
 
+
 CREATE PROCEDURE DropForeignKeyConstraint
     @tableName NVARCHAR(100),
     @constraintName NVARCHAR(100)
@@ -198,105 +199,362 @@ EXEC DropForeignKeyConstraint 'Employees', 'FK_Employees_DepartmentID';
 ---PART II
 
 
-CREATE OR ALTER PROCEDURE CreateNewTableVCtrl(
+
+
+
+
+
+
+
+-- Procedure to change column type and log the version
+-- Procedure to change column type and log the version
+
+
+
+
+
+
+--=============== CREATE NEW TABLE + ROLLBACK ===================
+
+CREATE OR ALTER PROCEDURE CreateNewTableVersion(
     @tableName VARCHAR(100),
-    @columnsDefinition VARCHAR(MAX)
+    @columnsDefinition VARCHAR(MAX),
+    @addToVersionCheck BIT = 1
 )
 AS
 BEGIN
-    DECLARE @sql VARCHAR(MAX);
-    SET @sql = 'CREATE TABLE ' + @tableName + ' (' + @columnsDefinition + ')';
+    DECLARE @sql NVARCHAR(MAX);
+    SET @sql = 'CREATE TABLE ' + QUOTENAME(@tableName) + ' (' + @columnsDefinition + ')';
 	PRINT @sql;
-    EXEC (@sql);
+    EXEC sp_executesql @sql;
 
-	INSERT INTO DataBaseVersions (ProcedureName, tableName, columnsDefinition)
-	VALUES ('CreateTable', @tableName, @columnsDefinition);
+    IF @addToVersionCheck = 1
+    BEGIN
+        DECLARE @existingVersion INT;
 
-	IF EXISTS (SELECT * FROM currentVersion)
-		UPDATE currentVersion
-		SET CurrentVersion = (SELECT MAX(VersionID) FROM DataBaseVersions)
-	ELSE
-		INSERT INTO currentVersion
-		VALUES ((SELECT MAX(VersionID) FROM DataBaseVersions))
+        -- Check if the version for the table already exists
+        SELECT @existingVersion = VersionID
+        FROM DataBaseVersions
+        WHERE ProcedureName = 'CreateNewTableVersion'
+          AND tableName = @tableName
+          AND columnsDefinition = @columnsDefinition;
+
+        IF @existingVersion IS NOT NULL
+        BEGIN
+            -- Update the existing version
+            UPDATE DataBaseVersions
+            SET columnsDefinition = @columnsDefinition
+            WHERE VersionID = @existingVersion;
+        END
+        ELSE
+        BEGIN
+            -- Insert a new version
+            INSERT INTO DataBaseVersions (ProcedureName, tableName, columnsDefinition)
+            VALUES ('CreateNewTableVersion', @tableName, @columnsDefinition);
+
+            IF EXISTS (SELECT * FROM currentVersion)
+                UPDATE currentVersion
+                SET CurrentVersion = (SELECT MAX(VersionID) FROM DataBaseVersions)
+            ELSE
+                INSERT INTO currentVersion
+                VALUES ((SELECT MAX(VersionID) FROM DataBaseVersions));
+        END;
+    END;
 END
 GO
 
 
 
 
-CREATE OR ALTER PROCEDURE DropTableIfExistsVCtrl(@tableName NVARCHAR(100))
+CREATE OR ALTER PROCEDURE RollbackCreateNewTableVersion
+    @tableName NVARCHAR(100),
+    @version INT
 AS
 BEGIN
     IF OBJECT_ID(@tableName, 'U') IS NOT NULL
     BEGIN
         DECLARE @sql NVARCHAR(MAX);
-        SET @sql = 'DROP TABLE ' + @tableName;
+        SET @sql = 'DROP TABLE ' + QUOTENAME(@tableName);
+
+        -- Use sp_executesql without parameters
         EXEC sp_executesql @sql;
+
+        -- Update the current version in the CurrentVersion table
+        UPDATE CurrentVersion SET CurrentVersion = @version - 1;
     END
 END;
 GO
 
+--===========================================================================
 
-CREATE OR ALTER PROCEDURE UpdateToVersion
-    @targetVersion INT
+
+--==================== CHANGE COLUMN TYPE + ROLLBACK ========================
+
+
+
+
+CREATE OR ALTER PROCEDURE ChangeColumnTypeVersion
+    @tableName NVARCHAR(100),
+    @columnName NVARCHAR(100),
+    @newDataType NVARCHAR(100),
+    @addToVersionCheck BIT = 1
 AS
 BEGIN
-    DECLARE @currentVersion INT, @procedureName VARCHAR(50), @tableName VARCHAR(100), @columnsDefinition VARCHAR(MAX);
+    DECLARE @sql NVARCHAR(MAX);
+    DECLARE @oldDataType NVARCHAR(100); -- New variable to store the original data type
 
-    -- Get the current version of the database
-    SELECT @currentVersion = CurrentVersion FROM CurrentVersion;
+    -- Retrieve the original data type of the column
+    SELECT @oldDataType = DATA_TYPE + '(' + CAST(CHARACTER_MAXIMUM_LENGTH AS VARCHAR) + ')'  -- Include length in data type
+    FROM INFORMATION_SCHEMA.COLUMNS
+    WHERE TABLE_NAME = @tableName
+      AND COLUMN_NAME = @columnName;
 
-    -- Rollback if the target version is lower than the current version
-    IF @targetVersion < @currentVersion
+    -- Generate and execute the ALTER TABLE statement
+    SET @sql = 'ALTER TABLE ' + QUOTENAME(@tableName) + ' ALTER COLUMN ' + QUOTENAME(@columnName) + ' ' + @newDataType;
+    EXEC sp_executesql @sql;
+
+    IF @addToVersionCheck = 1
     BEGIN
-        WHILE @currentVersion > @targetVersion
+        DECLARE @existingVersion INT;
+
+        -- Check if the version for the column already exists
+        SELECT @existingVersion = VersionID
+        FROM DataBaseVersions
+        WHERE ProcedureName = 'ChangeColumnTypeVersion'
+          AND tableName = @tableName
+          AND columnName = @columnName
+          AND columnType = @newDataType
+          AND oldColumnType = @oldDataType; -- Compare with the original data type
+
+        IF @existingVersion IS NOT NULL
         BEGIN
-            SELECT TOP 1 @procedureName = ProcedureName, @tableName = tableName, @columnsDefinition = columnsDefinition
-            FROM DataBaseVersions
-            WHERE VersionID = @currentVersion
-            ORDER BY VersionID DESC;
-
-            -- Perform rollback based on the procedure name
-            IF @procedureName = 'CreateTable'
-            BEGIN
-                EXEC DropTableIfExistsVCtrl @tableName;
-            END
-            -- Add more conditions for other operations rollback as per your requirements
-
-            DELETE FROM DataBaseVersions WHERE VersionID = @currentVersion;
-            SET @currentVersion = @currentVersion - 1;
+            -- Update the existing version
+            UPDATE DataBaseVersions
+            SET columnType = @newDataType,
+                oldColumnType = @oldDataType -- Store the original data type
+            WHERE VersionID = @existingVersion;
         END
+        ELSE
+        BEGIN
+            -- Insert a new version
+            INSERT INTO DataBaseVersions (ProcedureName, tableName, columnName, columnType, oldColumnType)
+            VALUES ('ChangeColumnTypeVersion', @tableName, @columnName, @newDataType, @oldDataType);
+
+            IF EXISTS (SELECT * FROM currentVersion)
+                UPDATE currentVersion
+                SET CurrentVersion = (SELECT MAX(VersionID) FROM DataBaseVersions)
+            ELSE
+                INSERT INTO currentVersion
+                VALUES ((SELECT MAX(VersionID) FROM DataBaseVersions));
+        END;
+    END;
+END;
+GO
+
+
+
+
+
+-- Procedure to rollback column type change and update the version
+CREATE OR ALTER PROCEDURE RollbackChangeColumnTypeVersion
+    @tableName NVARCHAR(100),
+    @columnName NVARCHAR(100),
+    @originalDataType NVARCHAR(100),
+    @version INT
+AS
+BEGIN
+    DECLARE @sql NVARCHAR(MAX);
+
+    -- Use the original data type in the rollback
+    SET @sql = 'ALTER TABLE ' + QUOTENAME(@tableName) + ' ALTER COLUMN ' + QUOTENAME(@columnName) + ' ' + @originalDataType;
+    EXEC sp_executesql @sql;
+
+    -- Update the current version in the CurrentVersion table
+    UPDATE CurrentVersion SET CurrentVersion = @version - 1;
+END;
+GO
+
+--=====================================================================
+
+--==================== ADD COLUMN TO TABLE + ROLLBACK ========================
+
+
+CREATE OR ALTER PROCEDURE AddColumnToTableVersion(
+    @tableName NVARCHAR(100),
+    @columnName NVARCHAR(100),
+    @columnDefinition NVARCHAR(100),
+    @addToVersionCheck BIT = 1
+)
+AS
+BEGIN
+    DECLARE @sql NVARCHAR(MAX);
+    SET @sql = 'ALTER TABLE ' + QUOTENAME(@tableName) +  ' ADD ' + QUOTENAME(@columnName) + ' ' + @columnDefinition;
+    PRINT @sql;
+    EXEC sp_executesql @sql;
+
+    IF @addToVersionCheck = 1
+    BEGIN
+        DECLARE @existingVersion INT;
+
+        -- Check if the version for the table already exists
+        SELECT @existingVersion = VersionID
+        FROM DataBaseVersions
+        WHERE ProcedureName = 'AddColumnToTableVersion'
+          AND tableName = @tableName
+          AND columnName = @columnName
+          AND columnsDefinition = @columnDefinition;
+
+        IF @existingVersion IS NOT NULL
+        BEGIN
+            -- Update the existing version
+            UPDATE DataBaseVersions
+            SET columnsDefinition = @columnDefinition
+            WHERE VersionID = @existingVersion;
+        END
+        ELSE
+        BEGIN
+            -- Insert a new version
+            INSERT INTO DataBaseVersions (ProcedureName, tableName, columnName, columnsDefinition)
+            VALUES ('AddColumnToTableVersion', @tableName, @columnName, @columnDefinition);
+
+            IF EXISTS (SELECT * FROM currentVersion)
+                UPDATE currentVersion
+                SET CurrentVersion = (SELECT MAX(VersionID) FROM DataBaseVersions)
+            ELSE
+                INSERT INTO currentVersion
+                VALUES ((SELECT MAX(VersionID) FROM DataBaseVersions));
+        END;
+    END;
+END;
+GO
+
+
+
+CREATE OR ALTER PROCEDURE RollbackAddColumnToTableVersion(
+    @tableName NVARCHAR(100),
+    @columnName NVARCHAR(100),
+    @version INT
+)
+AS
+BEGIN
+    DECLARE @sql NVARCHAR(MAX);
+    SET @sql = 'ALTER TABLE ' + QUOTENAME(@tableName) + ' DROP COLUMN ' + QUOTENAME(@columnName);
+    EXEC sp_executesql @sql;
+
+    -- Update the current version in the CurrentVersion table
+    UPDATE CurrentVersion SET CurrentVersion = @version - 1;
+END;
+GO
+
+
+
+--=====================================================================
+
+--=================== ADD A DEFAULT CONSTRAINT TO COLUMN + ROLLBACK ================
+CREATE OR ALTER PROCEDURE AddDefaultConstraint(@tableName NVARCHAR(100), @columnName NVARCHAR(100), @defaultConstraint NVARCHAR(100))
+AS
+    BEGIN
+       DECLARE @sql NVARCHAR(MAX);
+       SET @sql = 'ALTER TABLE ' + @tableName + ' ADD CONSTRAINT DF_' + @tableName + '_' + @columnName + ' DEFAULT ' + @defaultConstraint + ' FOR ' + @columnName;
+       print @sql
+        EXEC sp_executesql @sql
     END
-    -- Apply changes if the target version is higher than the current version
-    ELSE IF @targetVersion > @currentVersion
+
+EXEC AddDefaultConstraint 'Employees', 'LastName', '''Doe''';
+
+CREATE OR ALTER PROCEDURE DropDefaultConstraint(@tableName NVARCHAR(100), @columnName NVARCHAR(100))
+AS
     BEGIN
-        WHILE @currentVersion < @targetVersion
+       DECLARE @sql NVARCHAR(MAX);
+       SET @sql = 'ALTER TABLE ' + @tableName + ' DROP CONSTRAINT DF_' + @tableName + '_' + @columnName;
+       EXEC sp_executesql @sql;
+    END
+
+EXEC DropDefaultConstraint 'Employees', 'LastName'
+
+
+CREATE OR ALTER PROCEDURE GoToVersion @targetVersion INT
+AS
+BEGIN
+    DECLARE @CurrentVersion INT;
+    DECLARE @ProcedureName NVARCHAR(50),
+            @TableName NVARCHAR(100),
+            @ColumnName NVARCHAR(100),
+            @OriginalDataType NVARCHAR(100),
+            @ColumnType NVARCHAR(MAX);
+
+    SELECT @CurrentVersion = CurrentVersion FROM CurrentVersion;
+
+    IF @targetVersion >= 0 AND @targetVersion <= (SELECT MAX(VersionID) FROM DataBaseVersions)
+    BEGIN
+        WHILE @CurrentVersion <> @targetVersion
         BEGIN
-            SELECT TOP 1 @procedureName = ProcedureName, @columnsDefinition = columnsDefinition, @tableName = tableName
-            FROM DataBaseVersions
-            WHERE VersionID = @currentVersion + 1;
-
-            -- Apply changes based on the procedure name
-            IF @procedureName = 'CreateTable'
+            IF @CurrentVersion > @targetVersion
             BEGIN
-                EXEC CreateNewTableVCtrl @tableName, @columnsDefinition;
+                SELECT
+                    @ProcedureName = ProcedureName,
+                    @TableName = TableName,
+                    @ColumnName = columnName,
+                    @OriginalDataType = oldColumnType,
+                    @ColumnType = columnsDefinition
+                FROM DataBaseVersions
+                WHERE VersionID = @CurrentVersion;
+
+                DECLARE @RollbackProcedure NVARCHAR(50) = 'Rollback' + @ProcedureName;
+
+                IF @ProcedureName = 'CreateNewTableVersion'
+                    EXEC @RollbackProcedure @TableName, @CurrentVersion;
+                ELSE IF @ProcedureName = 'ChangeColumnTypeVersion'
+                    EXEC @RollbackProcedure @TableName, @ColumnName, @OriginalDataType, @CurrentVersion;
+                ELSE IF @ProcedureName = 'AddColumnToTableVersion'
+                    EXEC @RollbackProcedure @TableName, @ColumnName, @CurrentVersion;
+
+                SET @CurrentVersion = @CurrentVersion - 1;
             END
-            -- Add more conditions for other operations as per your requirements
+            ELSE
+            BEGIN
+                SELECT
+                    @ProcedureName = ProcedureName,
+                    @TableName = TableName,
+                    @ColumnName = columnName,
+                    @ColumnType = columnsDefinition
+                FROM DataBaseVersions
+                WHERE VersionID = @CurrentVersion + 1;
 
-            SELECT @currentVersion = @currentVersion + 1;
-        END
+                IF @ProcedureName = 'CreateNewTableVersion'
+                    EXEC @ProcedureName @TableName, @ColumnType;
+                ELSE IF @ProcedureName = 'ChangeColumnTypeVersion'
+                    EXEC @ProcedureName @TableName, @ColumnName, @OriginalDataType;
+                ELSE IF @ProcedureName = 'AddColumnToTableVersion'
+                    EXEC @ProcedureName @TableName, @ColumnName, @ColumnType;
 
-        -- Update the current version after applying changes
+                SET @CurrentVersion = @CurrentVersion + 1;
+            END;
+        END;
+
         UPDATE CurrentVersion SET CurrentVersion = @targetVersion;
-    END
+    END;
 END;
 
+EXEC GoToVersion 3;
+
+EXEC CreateNewTableVersion 'Employees',
+    'EmployeeID INT PRIMARY KEY, FirstName NVARCHAR(50) NOT NULL, LastName NVARCHAR(50) NOT NULL, Email NVARCHAR(100)';
+
+EXEC ChangeColumnTypeVersion 'Employees', 'Email', 'CHAR(150)';
+EXEC AddColumnToTableVersion 'Employees', 'PhoneNumber', 'NVARCHAR(20)';
+EXEC CreateNewTableVersion 'Departments', 'DepartmentID INT PRIMARY KEY, DepartmentName NVARCHAR(50)';
+EXEC AddColumnToTableVersion 'Employees', 'DepartmentID', 'INT';
 
 
 
 
-EXEC UpdateToVersion 1;
 
+
+DROP TABLE CurrentVersion;
+DROP TABLE DataBaseVersions;
+DROP TABLE Employees;
+-- DROP TABLE Departments;
 
 
 
@@ -324,34 +582,34 @@ CREATE TABLE DataBaseVersions (
 
 
 
--- CREATE TABLE DatabaseVersions (
---     VersionID INT PRIMARY KEY,
---     ProcedureName NVARCHAR(100),
---     Parameters NVARCHAR(MAX)
--- );
-
-
--- Create the CurrentVersion table with the appropriate column
-CREATE TABLE CurrentVersion (
-    CurrentVersionID INT PRIMARY KEY DEFAULT 1 -- Assume initial version is 1
-);
 
 
 
-
-SELECT * FROM CurrentVersion;
-
-
-
--- DROP TABLE Departments;
--- DROP TABLE Employees;
--- DROP TABLE DatabaseVersions;
-
--- DROP TABLE VersionHistory;
--- DROP TABLE CurrentVersion;
--- DROP TABLE Departments;
-
-
-
-
-
+    -- Procedure to rollback column type change and update the version
+-- CREATE OR ALTER PROCEDURE RollBackChangeColumnTypeVersion
+--     @tableName NVARCHAR(100),
+--     @columnName NVARCHAR(100),
+--     @originalDataType NVARCHAR(100),
+--     @version INT
+-- AS
+-- BEGIN
+--     DECLARE @sql NVARCHAR(MAX);
+--     DECLARE @oldColumnType NVARCHAR(100);
+--
+--     -- Retrieve the original column type from the DataBaseVersions table
+--     SELECT @oldColumnType = oldColumnType
+--     FROM DataBaseVersions
+--     WHERE ProcedureName = 'ChangeColumnTypeVCtrl'
+--       AND tableName = @tableName
+--       AND columnName = @columnName
+--       AND columnType = @originalDataType
+--       AND VersionID = @version;
+--
+--     -- Use the oldColumnType in the rollback
+--     SET @sql = 'ALTER TABLE ' + QUOTENAME(@tableName) + ' ALTER COLUMN ' + QUOTENAME(@columnName) + ' ' + @oldColumnType;
+--     EXEC sp_executesql @sql;
+--
+--     -- Update the current version in the CurrentVersion table
+--     UPDATE CurrentVersion SET CurrentVersion = @version - 1;
+-- END;
+-- GO
