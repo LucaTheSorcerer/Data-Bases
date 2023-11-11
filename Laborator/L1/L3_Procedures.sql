@@ -451,26 +451,162 @@ GO
 --=====================================================================
 
 --=================== ADD A DEFAULT CONSTRAINT TO COLUMN + ROLLBACK ================
-CREATE OR ALTER PROCEDURE AddDefaultConstraint(@tableName NVARCHAR(100), @columnName NVARCHAR(100), @defaultConstraint NVARCHAR(100))
+CREATE OR ALTER PROCEDURE AddDefaultConstraintVersion(
+    @tableName NVARCHAR(100),
+    @columnName NVARCHAR(100),
+    @defaultConstraint NVARCHAR(100),
+    @addToVersionCheck BIT = 1
+)
 AS
+BEGIN
+    DECLARE @sql NVARCHAR(MAX);
+    SET @sql = 'ALTER TABLE ' + QUOTENAME(@tableName) + ' ADD CONSTRAINT DF_' + @tableName + '_' + @columnName + ' DEFAULT ' + @defaultConstraint + ' FOR ' + QUOTENAME(@columnName);
+    PRINT @sql;
+    EXEC sp_executesql @sql;
+
+    IF @addToVersionCheck = 1
     BEGIN
-       DECLARE @sql NVARCHAR(MAX);
-       SET @sql = 'ALTER TABLE ' + @tableName + ' ADD CONSTRAINT DF_' + @tableName + '_' + @columnName + ' DEFAULT ' + @defaultConstraint + ' FOR ' + @columnName;
-       print @sql
-        EXEC sp_executesql @sql
+        DECLARE @existingVersion INT;
+
+        -- Check if the version for the table already exists
+        SELECT @existingVersion = VersionID
+        FROM DataBaseVersions
+        WHERE ProcedureName = 'AddDefaultConstraintVersion'
+          AND tableName = @tableName
+          AND columnName = @columnName
+          AND columnsDefinition = @defaultConstraint;
+
+        IF @existingVersion IS NOT NULL
+        BEGIN
+            -- Update the existing version
+            UPDATE DataBaseVersions
+            SET columnsDefinition = @defaultConstraint
+            WHERE VersionID = @existingVersion;
+        END
+        ELSE
+        BEGIN
+            -- Insert a new version
+            INSERT INTO DataBaseVersions (ProcedureName, tableName, columnName, columnsDefinition)
+            VALUES ('AddDefaultConstraintVersion', @tableName, @columnName, @defaultConstraint);
+
+            IF EXISTS (SELECT * FROM currentVersion)
+                UPDATE currentVersion
+                SET CurrentVersion = (SELECT MAX(VersionID) FROM DataBaseVersions)
+            ELSE
+                INSERT INTO currentVersion
+                VALUES ((SELECT MAX(VersionID) FROM DataBaseVersions));
+        END;
+    END;
+END;
+GO
+EXEC AddDefaultConstraintVersion 'Employees', 'LastName', '''Doe''';
+
+CREATE OR ALTER PROCEDURE RollbackAddDefaultConstraintVersion(
+    @tableName NVARCHAR(100),
+    @columnName NVARCHAR(100),
+    @version INT
+)
+AS
+BEGIN
+    DECLARE @sql NVARCHAR(MAX);
+    DECLARE @constraintName NVARCHAR(100) = 'DF_' + @tableName + '_' + @columnName;
+
+    IF EXISTS (SELECT * FROM sys.default_constraints WHERE name = @constraintName)
+    BEGIN
+        SET @sql = 'ALTER TABLE ' + QUOTENAME(@tableName) + ' DROP CONSTRAINT ' + @constraintName;
+        EXEC sp_executesql @sql;
     END
 
-EXEC AddDefaultConstraint 'Employees', 'LastName', '''Doe''';
+    -- Update the current version in the CurrentVersion table
+    UPDATE CurrentVersion SET CurrentVersion = @version - 1;
+END;
+GO
 
-CREATE OR ALTER PROCEDURE DropDefaultConstraint(@tableName NVARCHAR(100), @columnName NVARCHAR(100))
+--=====================================================================
+
+--=================== ADD A FOREIGN KEY CONSTRAINT TO COLUMN + ROLLBACK ================
+
+CREATE OR ALTER PROCEDURE AddForeignKeyConstraintVersion(
+    @tableName NVARCHAR(100),
+    @columnName NVARCHAR(100),
+    @referencedTable NVARCHAR(100),
+    @referencedColumn NVARCHAR(100),
+    @addToVersionCheck BIT = 1
+)
 AS
-    BEGIN
-       DECLARE @sql NVARCHAR(MAX);
-       SET @sql = 'ALTER TABLE ' + @tableName + ' DROP CONSTRAINT DF_' + @tableName + '_' + @columnName;
-       EXEC sp_executesql @sql;
-    END
+BEGIN
+    DECLARE @sql NVARCHAR(MAX);
+    SET @sql = 'ALTER TABLE ' + QUOTENAME(@tableName) + ' ADD CONSTRAINT FK_' + @tableName + '_' + @columnName +
+               ' FOREIGN KEY (' + QUOTENAME(@columnName) + ') REFERENCES ' + QUOTENAME(@referencedTable) + '(' + QUOTENAME(@referencedColumn) + ')';
+    PRINT @sql;
+    EXEC sp_executesql @sql;
 
-EXEC DropDefaultConstraint 'Employees', 'LastName'
+    IF @addToVersionCheck = 1
+    BEGIN
+        DECLARE @existingVersion INT;
+
+        -- Check if the version for the table already exists
+        SELECT @existingVersion = VersionID
+        FROM DataBaseVersions
+        WHERE ProcedureName = 'AddForeignKeyConstraintVersion'
+          AND tableName = @tableName
+          AND columnName = @columnName
+          AND referencedTable = @referencedTable
+          AND referencedColumn = @referencedColumn;
+
+        IF @existingVersion IS NOT NULL
+        BEGIN
+            -- Update the existing version
+            UPDATE DataBaseVersions
+            SET referencedTable = @referencedTable,
+                referencedColumn = @referencedColumn
+            WHERE VersionID = @existingVersion;
+        END
+        ELSE
+        BEGIN
+            -- Insert a new version
+            INSERT INTO DataBaseVersions (ProcedureName, tableName, columnName, referencedTable, referencedColumn)
+            VALUES ('AddForeignKeyConstraintVersion', @tableName, @columnName, @referencedTable, @referencedColumn);
+
+            IF EXISTS (SELECT * FROM currentVersion)
+                UPDATE currentVersion
+                SET CurrentVersion = (SELECT MAX(VersionID) FROM DataBaseVersions)
+            ELSE
+                INSERT INTO currentVersion
+                VALUES ((SELECT MAX(VersionID) FROM DataBaseVersions));
+        END;
+    END;
+END;
+GO
+
+
+CREATE OR ALTER PROCEDURE RollbackAddForeignKeyConstraintVersion(
+    @tableName NVARCHAR(100),
+    @columnName NVARCHAR(100),
+    @version INT
+)
+AS
+BEGIN
+    DECLARE @sql NVARCHAR(MAX);
+    DECLARE @constraintName NVARCHAR(100);
+
+    SELECT @constraintName = fk.name
+    FROM sys.foreign_keys AS fk
+    INNER JOIN sys.foreign_key_columns AS fkc ON fk.OBJECT_ID = fkc.constraint_object_id
+    INNER JOIN sys.columns AS c ON fkc.parent_object_id = c.object_id AND fkc.parent_column_id = c.column_id
+    WHERE fk.parent_object_id = OBJECT_ID(@tableName) AND c.name = @columnName;
+
+    IF @constraintName IS NOT NULL
+    BEGIN
+        SET @sql = 'ALTER TABLE ' + QUOTENAME(@tableName) + ' DROP CONSTRAINT ' + QUOTENAME(@constraintName);
+        EXEC sp_executesql @sql;
+
+        -- Update the current version in the CurrentVersion table
+        UPDATE CurrentVersion SET CurrentVersion = @version - 1;
+    END
+END;
+GO
+
 
 
 CREATE OR ALTER PROCEDURE GoToVersion @targetVersion INT
@@ -481,7 +617,9 @@ BEGIN
             @TableName NVARCHAR(100),
             @ColumnName NVARCHAR(100),
             @OriginalDataType NVARCHAR(100),
-            @ColumnType NVARCHAR(MAX);
+            @ColumnType NVARCHAR(MAX),
+            @ReferencedTable NVARCHAR(100),
+            @ReferencedColumn NVARCHAR(100);
 
     SELECT @CurrentVersion = CurrentVersion FROM CurrentVersion;
 
@@ -496,7 +634,9 @@ BEGIN
                     @TableName = TableName,
                     @ColumnName = columnName,
                     @OriginalDataType = oldColumnType,
-                    @ColumnType = columnsDefinition
+                    @ColumnType = columnsDefinition,
+                    @ReferencedTable = referencedTable,
+                    @ReferencedColumn = referencedColumn
                 FROM DataBaseVersions
                 WHERE VersionID = @CurrentVersion;
 
@@ -508,6 +648,10 @@ BEGIN
                     EXEC @RollbackProcedure @TableName, @ColumnName, @OriginalDataType, @CurrentVersion;
                 ELSE IF @ProcedureName = 'AddColumnToTableVersion'
                     EXEC @RollbackProcedure @TableName, @ColumnName, @CurrentVersion;
+                ELSE IF @ProcedureName = 'AddDefaultConstraintVersion'
+                    EXEC @RollbackProcedure @TableName, @ColumnName, @CurrentVersion;
+                ELSE IF @ProcedureName = 'AddForeignKeyConstraintVersion'
+                    EXEC @RollbackProcedure @TableName, @ColumnName, @CurrentVersion;
 
                 SET @CurrentVersion = @CurrentVersion - 1;
             END
@@ -517,7 +661,9 @@ BEGIN
                     @ProcedureName = ProcedureName,
                     @TableName = TableName,
                     @ColumnName = columnName,
-                    @ColumnType = columnsDefinition
+                    @ColumnType = columnsDefinition,
+                    @ReferencedTable = referencedTable,
+                    @ReferencedColumn = referencedColumn
                 FROM DataBaseVersions
                 WHERE VersionID = @CurrentVersion + 1;
 
@@ -527,7 +673,10 @@ BEGIN
                     EXEC @ProcedureName @TableName, @ColumnName, @OriginalDataType;
                 ELSE IF @ProcedureName = 'AddColumnToTableVersion'
                     EXEC @ProcedureName @TableName, @ColumnName, @ColumnType;
-
+                ELSE IF @ProcedureName = 'AddDefaultConstraintVersion'
+                    EXEC @ProcedureName @TableName, @ColumnName, @ColumnType;
+                ELSE IF @ProcedureName = 'AddForeignKeyConstraintVersion'
+                    EXEC @ProcedureName @TableName, @ColumnName, @ReferencedTable, @ReferencedColumn;
                 SET @CurrentVersion = @CurrentVersion + 1;
             END;
         END;
@@ -536,15 +685,17 @@ BEGIN
     END;
 END;
 
-EXEC GoToVersion 3;
+EXEC GoToVersion 6;
 
 EXEC CreateNewTableVersion 'Employees',
     'EmployeeID INT PRIMARY KEY, FirstName NVARCHAR(50) NOT NULL, LastName NVARCHAR(50) NOT NULL, Email NVARCHAR(100)';
-
 EXEC ChangeColumnTypeVersion 'Employees', 'Email', 'CHAR(150)';
 EXEC AddColumnToTableVersion 'Employees', 'PhoneNumber', 'NVARCHAR(20)';
 EXEC CreateNewTableVersion 'Departments', 'DepartmentID INT PRIMARY KEY, DepartmentName NVARCHAR(50)';
 EXEC AddColumnToTableVersion 'Employees', 'DepartmentID', 'INT';
+EXEC AddDefaultConstraintVersion 'Employees', 'LastName', '''Doe''';
+EXEC AddForeignKeyConstraintVersion 'Employees', 'DepartmentID', 'Departments', 'DepartmentID'
+
 
 
 
@@ -554,7 +705,7 @@ EXEC AddColumnToTableVersion 'Employees', 'DepartmentID', 'INT';
 DROP TABLE CurrentVersion;
 DROP TABLE DataBaseVersions;
 DROP TABLE Employees;
--- DROP TABLE Departments;
+DROP TABLE Departments;
 
 
 
