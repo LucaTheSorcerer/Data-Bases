@@ -491,64 +491,116 @@ GO
 -- END;
 -- GO
 
-CREATE OR ALTER PROCEDURE ChangeColumnTypeVersion (
-    @tableName VARCHAR(100),
-    @columnName VARCHAR(100),
-    @columnType VARCHAR(100),
-    @addToVersionHistory BIT = 1
+-- CREATE OR ALTER PROCEDURE ChangeColumnTypeVersion (
+--     @tableName VARCHAR(100),
+--     @columnName VARCHAR(100),
+--     @columnType VARCHAR(100),
+--     @addToVersionHistory BIT = 1
+-- )
+-- AS
+-- BEGIN
+--     DECLARE @oldColumnType VARCHAR(100);
+--
+--     SELECT
+--         @oldColumnType = DATA_TYPE +
+--                          CASE WHEN CHARACTER_MAXIMUM_LENGTH IS NOT NULL THEN
+--                              '(' + CAST(CHARACTER_MAXIMUM_LENGTH AS VARCHAR(100)) + ')'
+--                          ELSE
+--                              ''
+--                          END
+--     FROM INFORMATION_SCHEMA.COLUMNS
+--     WHERE TABLE_NAME = @tableName
+--       AND COLUMN_NAME = @columnName;
+--
+--     DECLARE @sql VARCHAR(MAX);
+--     SET @sql = 'ALTER TABLE ' + @tableName + ' ALTER COLUMN ' + @columnName + ' ' + @columnType;
+--     PRINT @sql;
+--     EXEC (@sql);
+--
+--     IF @addToVersionHistory = 1
+--     BEGIN
+--         DECLARE @existingVersion INT;
+--
+--         SELECT @existingVersion = VersionID
+--         FROM DataBaseVersions
+--         WHERE ProcedureName = 'ChangeColumnTypeVersion'
+--           AND tableName = @tableName
+--           AND columnName = @columnName
+--           AND columnType = @columnType;
+--
+--         IF @existingVersion IS NOT NULL
+--         BEGIN
+--             UPDATE DataBaseVersions
+--             SET oldColumnType = @oldColumnType
+--             WHERE VersionID = @existingVersion;
+--         END
+--         ELSE
+--         BEGIN
+--             INSERT INTO DataBaseVersions (ProcedureName, tableName, columnName, columnType, oldColumnType)
+--             VALUES ('ChangeColumnTypeVersion', @tableName, @columnName, @columnType, @oldColumnType);
+--         END
+--
+--         IF EXISTS (SELECT * FROM currentVersion)
+--             UPDATE currentVersion
+--             SET CurrentVersion = (SELECT MAX(VersionID) FROM DataBaseVersions)
+--         ELSE
+--             INSERT INTO currentVersion
+--             VALUES ((SELECT MAX(VersionID) FROM DataBaseVersions));
+--     END;
+-- END;
+-- GO
+
+
+CREATE   PROCEDURE AddColumnToTableVersion(
+    @tableName NVARCHAR(100),
+    @columnName NVARCHAR(100),
+    @columnDefinition NVARCHAR(100),
+    @addToVersionCheck BIT = 1
 )
 AS
 BEGIN
-    DECLARE @oldColumnType VARCHAR(100);
-
-    SELECT
-        @oldColumnType = DATA_TYPE +
-                         CASE WHEN CHARACTER_MAXIMUM_LENGTH IS NOT NULL THEN
-                             '(' + CAST(CHARACTER_MAXIMUM_LENGTH AS VARCHAR(100)) + ')'
-                         ELSE
-                             ''
-                         END
-    FROM INFORMATION_SCHEMA.COLUMNS
-    WHERE TABLE_NAME = @tableName
-      AND COLUMN_NAME = @columnName;
-
-    DECLARE @sql VARCHAR(MAX);
-    SET @sql = 'ALTER TABLE ' + @tableName + ' ALTER COLUMN ' + @columnName + ' ' + @columnType;
+    DECLARE @sql NVARCHAR(MAX);
+    SET @sql = 'ALTER TABLE ' + QUOTENAME(@tableName) +  ' ADD ' + QUOTENAME(@columnName) + ' ' + @columnDefinition;
     PRINT @sql;
-    EXEC (@sql);
+    EXEC sp_executesql @sql;
 
-    IF @addToVersionHistory = 1
+    IF @addToVersionCheck = 1
     BEGIN
         DECLARE @existingVersion INT;
 
+        -- Check if the version for the table already exists
         SELECT @existingVersion = VersionID
         FROM DataBaseVersions
-        WHERE ProcedureName = 'ChangeColumnTypeVersion'
+        WHERE ProcedureName = 'AddColumnToTableVersion'
           AND tableName = @tableName
           AND columnName = @columnName
-          AND columnType = @columnType;
+          AND columnsDefinition = @columnDefinition;
 
         IF @existingVersion IS NOT NULL
         BEGIN
+            -- Update the existing version
             UPDATE DataBaseVersions
-            SET oldColumnType = @oldColumnType
+            SET columnsDefinition = @columnDefinition
             WHERE VersionID = @existingVersion;
         END
         ELSE
         BEGIN
-            INSERT INTO DataBaseVersions (ProcedureName, tableName, columnName, columnType, oldColumnType)
-            VALUES ('ChangeColumnTypeVersion', @tableName, @columnName, @columnType, @oldColumnType);
-        END
+            -- Insert a new version
+            INSERT INTO DataBaseVersions (ProcedureName, tableName, columnName, columnsDefinition)
+            VALUES ('AddColumnToTableVersion', @tableName, @columnName, @columnDefinition);
 
-        IF EXISTS (SELECT * FROM currentVersion)
-            UPDATE currentVersion
-            SET CurrentVersion = (SELECT MAX(VersionID) FROM DataBaseVersions)
-        ELSE
-            INSERT INTO currentVersion
-            VALUES ((SELECT MAX(VersionID) FROM DataBaseVersions));
+            IF EXISTS (SELECT * FROM currentVersion)
+                UPDATE currentVersion
+                SET CurrentVersion = (SELECT MAX(VersionID) FROM DataBaseVersions)
+            ELSE
+                INSERT INTO currentVersion
+                VALUES ((SELECT MAX(VersionID) FROM DataBaseVersions));
+        END;
     END;
 END;
-GO
+go
+
+
 
 
 
@@ -802,6 +854,15 @@ END;
 
 
 EXEC GoToVersion 0;
+EXEC GoToVersion 1;
+EXEC GoToVersion 2;
+EXEC GoToVersion 3;
+EXEC GoToVersion 4;
+EXEC GoToVersion 5;
+EXEC GoToVersion 6;
+EXEC GoToVersion 7;
+EXEC GoToVersion 8;
+EXEC GoToVersion 9;
 
 EXEC CreateNewTableVersion 'Employees',
     'EmployeeID INT PRIMARY KEY, FirstName NVARCHAR(50) NOT NULL, LastName NVARCHAR(50) NOT NULL, Email NVARCHAR(100)';
@@ -817,7 +878,8 @@ EXEC AddDefaultConstraintVersion 'Employees', 'Salary', '100'
 
 
 
-
+SELECT * FROM DataBaseVersions;
+SELECT * FROM CurrentVersion
 
 
 DROP TABLE CurrentVersion;
