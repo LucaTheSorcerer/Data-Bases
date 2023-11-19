@@ -121,3 +121,117 @@ ORDER BY
     E.SalaryAmount DESC, E.EmployeeID;
 
 -- ================= END EXERCISE 2 =============
+
+-- ================= EXERCISE 3 =================
+
+CREATE TABLE Logger (
+    LogID INT PRIMARY KEY IDENTITY(1,1),
+    LogDate DATETIME NOT NULL,
+    LogType CHAR(1) NOT NULL, -- I = Insert, U = Update, D = Delete
+    TableName NVARCHAR(100) NOT NULL,
+    AffectedRows INT NOT NULL
+);
+
+CREATE OR ALTER TRIGGER EmployeeOperationTrigger
+ON Employees
+AFTER INSERT, UPDATE, DELETE
+AS
+BEGIN
+    DECLARE @OperationType CHAR(1);
+
+    -- Determine the type of operation
+    IF EXISTS (SELECT * FROM inserted)
+    BEGIN
+        IF EXISTS (SELECT * FROM deleted)
+            SET @OperationType = 'U'; -- Update
+        ELSE
+            SET @OperationType = 'I'; -- Insert
+    END
+    ELSE
+        SET @OperationType = 'D'; -- Delete
+
+    -- Insert information into the log table
+    INSERT INTO Logger (LogDate, LogType, TableName, AffectedRows)
+    VALUES (GETDATE(), @OperationType, 'Employees', (SELECT COUNT(DISTINCT EmployeeID) FROM (
+            SELECT EmployeeID FROM inserted
+            UNION
+            SELECT EmployeeID FROM deleted
+        ) AS CombinedTable));
+END;
+
+SELECT * FROM Logger;
+DROP TABLE Logger;
+
+INSERT INTO Employees (EmployeeID, FirstName, LastName, Email, Phone, DepartmentID, SalaryAmount, CurrentStatus)
+    VALUES (18,'Ana','Dove','ana.dove@email.com','999-999-9999',2,50000.00,'Active');
+
+INSERT INTO Employees (EmployeeID, FirstName, LastName, Email, Phone, DepartmentID, SalaryAmount, CurrentStatus) VALUES
+    (19,'Maven','Johnson','maven.johnson@email.com','123-456-7890',1,60000.00,'Active'),
+    (20,'Bob','Dob','bob.dob@email.com','7890-456-123',1,65000.00,'Active');
+
+
+UPDATE Employees
+SET SalaryAmount = 55000.00
+WHERE EmployeeID = 18;
+    SELECT @@ROWCOUNT AS AffectedRows;
+
+DELETE FROM Employees
+WHERE EmployeeID = 18;
+
+-- ================= END EXERCISE 3 =============
+
+-- ================= EXERCISE 4 =================
+
+CREATE TABLE UpdateLog (
+    LogID INT PRIMARY KEY IDENTITY(1,1),
+    EmployeeID INT,
+    OldSalaryAmount DECIMAL(10, 2),
+    NewSalaryAmount DECIMAL(10, 2),
+    UpdateDate DATETIME
+);
+
+CREATE OR ALTER PROCEDURE UpdateEmployeeSalary
+    @EmployeeID INT,
+    @NewSalaryAmount DECIMAL(10, 2)
+AS
+    BEGIN
+       DECLARE @OldSalaryAmount DECIMAL(10, 2);
+
+       SELECT @OldSalaryAmount = SalaryAmount
+        FROM Employees
+        WHERE EmployeeID = @EmployeeID;
+
+       UPDATE Employees
+        SET SalaryAmount = @NewSalaryAmount
+        WHERE EmployeeID = @EmployeeID;
+
+       INSERT INTO UpdateLog (EmployeeID, OldSalaryAmount, NewSalaryAmount, UpdateDate)
+        VALUES (@EmployeeID, @OldSalaryAmount, @NewSalaryAmount, GETDATE());
+    END;
+
+
+DECLARE EmployeeCursor CURSOR FOR
+SELECT EmployeeID, SalaryAmount
+FROM Employees;
+
+DECLARE @EmployeeID INT, @OldSalaryAmount DECIMAL(10, 2), @NewSalaryAmount DECIMAL(10, 2);
+
+OPEN EmployeeCursor;
+
+FETCH NEXT FROM EmployeeCursor INTO @EmployeeID, @OldSalaryAmount;
+
+WHILE @@FETCH_STATUS = 0
+BEGIN
+    SET @NewSalaryAmount = @OldSalaryAmount * 1.1;
+
+    EXEC UpdateEmployeeSalary @EmployeeID, @NewSalaryAmount;
+
+    FETCH NEXT FROM EmployeeCursor INTO @EmployeeID, @OldSalaryAmount;
+END
+
+CLOSE EmployeeCursor;
+DEALLOCATE EmployeeCursor;
+
+SELECT * FROM UpdateLog;
+
+-- ================= END EXERCISE 4 =============
