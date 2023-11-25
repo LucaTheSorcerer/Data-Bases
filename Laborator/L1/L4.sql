@@ -54,16 +54,32 @@ BEGIN
     VALUES (@EmployeeID, @FirstName, @LastName, @Email, @Phone, @DepartmentID, @SalaryAmount, @CurrentStatus)
 END
 
-
-EXEC InsertEmployee 17,'John','Woods','john.woods@email.com','888-888-8888',1,70000.00,'Active';
-EXEC InsertEmployee 17,'123','Woods','john.woods@email.com','888-888-8888',1,70000.00,'Active';
-EXEC InsertEmployee 17,'John','Woods','john.woods@email.com','888-888-8888',1,-1,'Active';
+Select * FROm Employees;
+EXEC InsertEmployee 21,'John','Woods','johnn.woods@email.com','888-888-8888',1,70000.00,'Active';
+EXEC InsertEmployee 21,'123','Woods','john.woods@email.com','888-888-8888',1,70000.00,'Active';
+EXEC InsertEmployee 21,'John','Woods','john.woods@email.com','888-888-8888',1,-1,'Active';
 
 
 -- ================= END EXERCISE 1 =============
 
 
 -- ================= EXERCISE 2 =================
+
+-- CREATE OR ALTER VIEW EmployeeDetailsView AS
+-- SELECT
+--     E.EmployeeID,
+--     E.FirstName,
+--     E.LastName,
+--     E.Email,
+--     E.SalaryAmount,
+--     D.DepartmentName,
+--     S.SkillName
+-- FROM
+--     Employees E
+-- JOIN Departments D ON E.DepartmentID = D.DepartmentID
+-- LEFT JOIN EmployeeSkills ES ON E.EmployeeID = ES.EmployeeID
+-- LEFT JOIN Skills S ON ES.SkillID = S.SkillID;
+
 
 CREATE OR ALTER VIEW EmployeeDetailsView AS
 SELECT
@@ -73,12 +89,22 @@ SELECT
     E.Email,
     E.SalaryAmount,
     D.DepartmentName,
-    S.SkillName
+    S.SkillName,
+    COUNT(P.EmployeeID) AS TotalProjects
 FROM
     Employees E
 JOIN Departments D ON E.DepartmentID = D.DepartmentID
 LEFT JOIN EmployeeSkills ES ON E.EmployeeID = ES.EmployeeID
-LEFT JOIN Skills S ON ES.SkillID = S.SkillID;
+LEFT JOIN Skills S ON ES.SkillID = S.SkillID
+LEFT JOIN EmployeeProjects P ON E.EmployeeID = P.EmployeeID
+GROUP BY
+    E.EmployeeID,
+    E.FirstName,
+    E.LastName,
+    E.Email,
+    E.SalaryAmount,
+    D.DepartmentName,
+    S.SkillName;
 
 
 
@@ -88,37 +114,39 @@ AS
 RETURN
 (
     SELECT TOP (@TopCount)
-        E.EmployeeID,
-        E.FirstName,
-        E.LastName,
-        E.SalaryAmount,
+--         E.EmployeeID,
+--         E.FirstName,
+--         E.LastName,
+--         E.SalaryAmount,
         SUM(TT.HoursWorked) AS TotalHoursWorked
     FROM
         Employees E
+--         EmployeeDetailsView E
     LEFT JOIN TimeTracking TT ON E.EmployeeID = TT.EmployeeID
     GROUP BY
-        E.EmployeeID,
-        E.FirstName,
-        E.LastName,
+--         E.EmployeeID,
+--         E.FirstName,
+--         E.LastName,
         E.SalaryAmount
     ORDER BY
         E.SalaryAmount DESC, TotalHoursWorked DESC
 )
 
-SELECT DISTINCT
+SELECT
     E.EmployeeID,
     E.FirstName,
     E.LastName,
     E.Email,
     E.SalaryAmount,
     E.DepartmentName,
+    E.SkillName,
+    E.TotalProjects,
     TopEmployees.TotalHoursWorked
 FROM
     EmployeeDetailsView E
 JOIN
     dbo.GetTopEmployeesBySalary(3) TopEmployees ON E.EmployeeID = TopEmployees.EmployeeID
-ORDER BY
-    E.SalaryAmount DESC, E.EmployeeID;
+
 
 -- ================= END EXERCISE 2 =============
 
@@ -139,18 +167,16 @@ AS
 BEGIN
     DECLARE @OperationType CHAR(1);
 
-    -- Determine the type of operation
     IF EXISTS (SELECT * FROM inserted)
     BEGIN
         IF EXISTS (SELECT * FROM deleted)
-            SET @OperationType = 'U'; -- Update
+            SET @OperationType = 'U';
         ELSE
-            SET @OperationType = 'I'; -- Insert
+            SET @OperationType = 'I';
     END
     ELSE
-        SET @OperationType = 'D'; -- Delete
+        SET @OperationType = 'D';
 
-    -- Insert information into the log table
     INSERT INTO Logger (LogDate, LogType, TableName, AffectedRows)
     VALUES (GETDATE(), @OperationType, 'Employees', (SELECT COUNT(DISTINCT EmployeeID) FROM (
             SELECT EmployeeID FROM inserted
