@@ -63,64 +63,89 @@ EXEC InsertData;
 
 
 EXEC sp_helpindex 'Ta';
-
-SELECT *
-FROM Ta
-WHERE idA > 0;
-
-
-SELECT *
-FROM Ta
-WHERE idA = 1000;
-
-SELECT *
-FROM Ta
-WHERE a2 BETWEEN 1 AND 100;
+    SELECT *
+FROM sys.indexes
+WHERE object_id = OBJECT_ID('Ta');
 
 
-SELECT *
-FROM Ta
-WHERE a2 = 3578;
+SELECT COUNT(*) From Ta;
+SELECT COUNT(*) From Tb;
+SELECT COUNT(*) From Tc;
 
---aufgabe 3
+SELECT * FROM Ta;
+SELECT * FROM Tb;
+SELECT * FROM Tc;
 
+--Exercise 2
 
-
-CREATE NONCLUSTERED INDEX IX_Tb_b2
-ON Tb(b2);
-
+--a)
 SET SHOWPLAN_TEXT ON;
 GO
-
-SELECT *
-FROM Tb
-WHERE b2 = 1386;
 
 SET SHOWPLAN_TEXT OFF;
 GO
+--clustered index scan
+SELECT a2 FROM Ta Where a2>= 10000 ORDER BY idA DESC;
 
---EXERCISE 4
+--clustered index seek
+SELECT * FROM Ta WHERE idA > 100;
 
-SET SHOWPLAN_TEXT ON;
+--non-clustered index scan
+SELECT * FROM Ta WHERE a2 % 10 = 0;
+
+--non clustered index seek
+SELECT * FROM Ta WHERE a2 = 3578;
+
+--b)
+    SET SHOWPLAN_TEXT ON;
 GO
-
--- SELECT query with INNER JOIN between Tc and Ta with a condition
-SELECT *
-FROM Tc
-INNER JOIN Ta ON Tc.idA = Ta.idA
-WHERE Ta.a2 = 272; -- Replace [YourValue] with the specific value you are interested in
 
 SET SHOWPLAN_TEXT OFF;
 GO
+ALTER TABLE Ta ADD a3 INT;
+CREATE NONCLUSTERED INDEX idx_a2 ON Ta(a2);
+    DROP index idx_a2 ON Ta;
+SELECT a3 from Ta;
+SELECT idA, a3 FROM Ta WHERE a2 = 5000;
 
+
+
+--c)
 
 SET SHOWPLAN_TEXT ON;
 GO
--- SELECT query with INNER JOIN between Tc and Tb with a condition
-SELECT *
-FROM Tc
+SET SHOWPLAN_TEXT OFF;
+GO
+
+SELECT * FROM sys.indexes WHERE object_id = OBJECT_ID('Tb');
+
+SELECT * FROM Tb WHERE b2 = 1500;
+
+CREATE NONCLUSTERED INDEX idx_b2 ON Tb(b2) INCLUDE (b3);
+DROP INDEX idx_b2 on Tb;
+
+
+--d)
+SELECT * FROM sys.indexes WHERE object_id = OBJECT_ID('Tc');
+SET SHOWPLAN_TEXT ON;
+GO
+
+SET SHOWPLAN_TEXT OFF;
+GO
+SELECT Tc.idC, Ta.a2, Ta.a3 FROM Tc
+JOIN Ta on Tc.idA = Ta.idA
+WHERE tc.idA = 700;
+
+SELECT Tc.idC, Tb.b2 FROM Tc
 JOIN Tb ON Tc.idB = Tb.idB
-WHERE Tb.b2 = 1386; -- Replace [YourValue] with the specific value you are interested in
+WHERE Tc.idB = 1700;
 
-SET SHOWPLAN_TEXT OFF;
-GO
+SELECT * FROM Tc INNER JOIN Ta ON Tc.idA = Ta.idA WHERE Ta.idA = 100;
+
+
+CREATE NONCLUSTERED INDEX I_idA ON Tc(idA);
+CREATE NONCLUSTERED INDEX I_idB ON Tc(idB);
+
+DROP INDEX Tc.I_idA;
+DROP INDEX Tc.I_idB;
+

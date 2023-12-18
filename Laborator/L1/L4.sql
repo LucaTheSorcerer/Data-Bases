@@ -185,9 +185,10 @@ BEGIN
         ) AS CombinedTable));
 END;
 
-SELECT * FROM Logger;
+SELECT * FROM Logger WHERE LogID > 4047;
 DROP TABLE Logger;
 SELECT  * FROM Employees;
+SELECT COUNT(*) FROM Employees;
 INSERT INTO Employees (EmployeeID, FirstName, LastName, Email, Phone, DepartmentID, SalaryAmount, CurrentStatus)
     VALUES (18,'Ana','Dove','ana.dove@email.com','999-999-9999',2,50000.00,'Active');
 
@@ -212,7 +213,7 @@ SELECT @@ROWCOUNT AS AffectedRows;
 
 
 DELETE FROM Employees
-WHERE EmployeeID = 18;
+WHERE EmployeeID in (15, 18);
 
 DELETE FROM Employees
 WHERE EmployeeID IN (22, 23);
@@ -360,6 +361,7 @@ BEGIN
 END;
 
 
+SELECT * FROM Employees;
 
 DECLARE EmployeeCursor CURSOR FOR
 SELECT EmployeeID, SalaryAmount
@@ -381,6 +383,6 @@ END
 CLOSE EmployeeCursor;
 DEALLOCATE EmployeeCursor;
 
-SELECT * FROM UpdateLog;
-
 SELECT * FROM Employees;
+
+SELECT * FROM UpdateLog;
