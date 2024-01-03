@@ -84,17 +84,15 @@ GO
 
 SET SHOWPLAN_TEXT OFF;
 GO
---clustered index scan
+
 SELECT a2 FROM Ta Where a2>= 10000 ORDER BY idA DESC;
 
---clustered index seek
 SELECT * FROM Ta WHERE idA > 100;
 
---non-clustered index scan
-SELECT * FROM Ta WHERE a2 % 10 = 0;
+SELECT idA, a2 FROM Ta ORDER BY a2;
 
---non clustered index seek
-SELECT * FROM Ta WHERE a2 = 3578;
+SELECT idA, a2 FROM Ta WHERE a2 >= 500 AND a2 <= 1000;
+SELECT * FROM Ta WHERE a2 = 500
 
 --b)
     SET SHOWPLAN_TEXT ON;
@@ -102,9 +100,17 @@ GO
 
 SET SHOWPLAN_TEXT OFF;
 GO
+SELECT * FROM sys.indexes WHERE object_id = OBJECT_ID('Ta');
+
 ALTER TABLE Ta ADD a3 INT;
-CREATE NONCLUSTERED INDEX idx_a2 ON Ta(a2);
-    DROP index idx_a2 ON Ta;
+-- CREATE NONCLUSTERED INDEX idx_a2 ON Ta(a2);
+-- CREATE NONCLUSTERED INDEX idx_a3 ON Ta(a3);
+
+-- CREATE NONCLUSTERED INDEX idx_a2 ON Ta(a2) INCLUDE (a3);
+-- CREATE NONCLUSTERED INDEX idx_a3 ON Ta(a3) INCLUDE (a2);
+
+-- DROP index idx_a2 ON Ta;
+--     DROP index idx_a3 ON Ta;
 SELECT a3 from Ta;
 SELECT idA, a3 FROM Ta WHERE a2 = 5000;
 
@@ -119,7 +125,8 @@ GO
 
 SELECT * FROM sys.indexes WHERE object_id = OBJECT_ID('Tb');
 
-SELECT * FROM Tb WHERE b2 = 1500;
+SELECT * FROM Tb WHERE b2 > 1500;
+
 
 CREATE NONCLUSTERED INDEX idx_b2 ON Tb(b2) INCLUDE (b3);
 DROP INDEX idx_b2 on Tb;
